@@ -1,0 +1,3 @@
+[submodule "openresty/openresty"]
+	path = openresty/openresty
+	url = git@github.com:slionercheng/openresty.git
