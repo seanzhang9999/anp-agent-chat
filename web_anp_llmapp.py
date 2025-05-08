@@ -297,7 +297,8 @@ async def client_notify_chat_thread(message_data: Dict[str, Any]):
     # 在控制台显示通知
     logging.info(f"ANP客户请求: {message_data['user_message']}")
     logging.info(f"ANP对方响应: {message_data['assistant_message']}")
-    
+   
+
     # 打印到控制台，确保在聊天线程中可见
     print(f"\nANP-req从本地发出: {message_data['user_message']}")
     print(f"\nANP-req从@{settings.TARGET_SERVER_PORT}收到:  {message_data['assistant_message']}\n")

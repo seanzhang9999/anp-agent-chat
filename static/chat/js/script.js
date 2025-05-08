@@ -70,6 +70,15 @@ async function loadChatHistory() {
                     addUserMessage(item.message);
                 } else if (item.type === 'assistant') {
                     addAssistantMessage(item.message);
+                } else if (item.type === 'anp_nlp') {
+                    // 添加智能体消息，使用与助手消息相同的样式但添加特殊标记
+                    const messageEl = document.createElement('div');
+                    messageEl.className = 'message assistant-message agent-response';
+                    if (item.timestamp) {
+                        messageEl.setAttribute('data-timestamp', item.timestamp);
+                    }
+                    messageEl.textContent = item.message;
+                    chatMessages.appendChild(messageEl);
                 } else if (item.type === 'system') {
                     addSystemMessage(item.message);
                 }
@@ -198,7 +207,7 @@ async function recommendAgent() {
     try {
         // 准备请求数据 - 包含用户消息和所有可用的智能体信息
         const requestData = {
-            message: `请根据用户的需求"${message}"，从以下智能体中推荐最合适的一个，只返回推荐智能体的名称：${JSON.stringify(bookmarks)}`,
+            message: `用户需求："${message}"，\n智能体描述：${JSON.stringify(bookmarks)}`,
             isRecommendation: true
         };
         
@@ -217,20 +226,26 @@ async function recommendAgent() {
         if (waitingElement) {
             waitingElement.remove();
         }
-        
+        console.log(data.response);
         if (data.success) {
-            // 解析大模型的推荐结果
-            const recommendedAgentName = data.response.trim();
+            // 解析大模型的推荐结果，查找以@开头的智能体名称
+            let recommendedAgentName = data.response.trim();
+            
+            // 查找@开头的名称并去掉@符号
+            const atMatch = recommendedAgentName.match(/@([^\s]+)/);
+            if (atMatch && atMatch[1]) {
+                recommendedAgentName = atMatch[1];
+            }
             
             // 查找推荐的智能体
             const recommendedAgent = bookmarks.find(b => 
                 b.name.toLowerCase() === recommendedAgentName.toLowerCase() ||
                 recommendedAgentName.toLowerCase().includes(b.name.toLowerCase())
             );
-            
+
             if (recommendedAgent) {
                 // 添加推荐消息
-                addSystemMessage(`基于给出的信息：${JSON.stringify(bookmarks)}，\n推荐使用智能体: ${recommendedAgent.name}`);
+                addSystemMessage(`基于给出的信息：${message}，\n分析如下: ${data.response}，\n推荐智能体: ${recommendedAgent.name}`);
                 
                 // 自动选择该智能体
                 useBookmark(recommendedAgent);
@@ -470,8 +485,7 @@ function startPollingForAgentResponse() {
             if (data.success && data.history) {
                 // 检查是否有新消息
                 const newMessages = data.history.filter(msg => 
-                    msg.type === 'assistant' && 
-                    msg.from_agent === true && 
+                    msg.type === 'anp_nlp' && 
                     !document.querySelector(`.agent-response[data-timestamp="${msg.timestamp}"]`)
                 );
                 
