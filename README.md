@@ -1,33 +1,33 @@
-# anp agent openlink 开放互联智能体网络演示框架
+# anp agent openchat 开放互联智能体网络演示框架
 
 [English Version](README_EN.md)
 
-本项目展示了 anp 开放互联智能体网络的一个实现框架，围绕 anp agent openlink 客户端和 anp agent openlink publisher 发布端，演示了智能体的开放集成、身份机制与互联通信能力。
+本项目展示了 anp 开放互联智能体网络的一个实现框架，围绕 anp agent openchat 客户端和 anp agent openchat publisher 发布端，演示了智能体的开放集成、身份机制与互联通信能力。
 
 ## 演示目标
 
-1. **任何人**都可以启动 anp agent openlink 客户端，自由探索 anp 网络智能体世界。
-2. **任何开发者**都可以快速集成 anp 协议，并通过 anp agent openlink publisher 自主可控地发布智能体。
+1. **任何人**都可以启动 anp agent openchat 客户端，自由探索 anp 网络智能体世界。
+2. **任何开发者**都可以快速集成 anp 协议，并通过 anp agent openchat publisher 自主可控地发布智能体。
 3. 智能体之间通过 **DID** 确认身份唯一性，可信性可通过开放方式提供：如 DID 发布域名、ad.json 丰富信息、权威方 DID 签名背书、组织/社群的 DIDI 签名背书等。
 
 ## 演示启动
 
-- **anp agent openlink**：为使用者提供 AI 聊天、发现智能体、与智能体聊天。运行 `web_api.py`，默认启动在 8000 端口。
-- **anp agent openlink publisher**：帮助服务者启动和监控本地多个 agent，并公布运行中的 agent 地址。运行 `web_anp_llmagent_launcher.py`，默认启动在 8080 端口。
+- **anp agent openchat**：为使用者提供 AI 聊天、发现智能体、与智能体聊天。运行 `web_api.py`，默认启动在 8000 端口。
+- **anp agent openchat publisher**：帮助服务者启动和监控本地多个 agent，并公布运行中的 agent 地址。运行 `web_anp_llmagent_launcher.py`，默认启动在 8080 端口。
 
 ## 演示功能
 
-### anp agent openlink
-1. 从 anp agent openlink publisher 加载智能体书签。
+### anp agent openchat
+1. 从 anp agent openchat publisher 加载智能体书签。
 2. 通过本地 AI 智能体基于 anp 协议探索智能体，了解其细节，探索中需验证自身身份。
 3. 本地 AI 智能体根据用户需求推荐智能体。
 4. 支持 @网络智能体 聊天。
 5. 与本地 AI 智能体多轮对话交流。
 
-### anp agent openlink publisher
+### anp agent openchat publisher
 1. 下拉菜单选择并运行本地智能体。
 2. 查看智能体运行状况。
-3. 运行中的智能体地址通过 `/api/public/instances` 发布，供 anp agent openlink 获取。
+3. 运行中的智能体地址通过 `/api/public/instances` 发布，供 anp agent openchat 获取。
 
 ## 安装方法
 
@@ -54,14 +54,14 @@ poetry install
 
 本项目支持多种运行方式：
 
-### 1. 启动 anp agent openlink 客户端
+### 1. 启动 anp agent openchat 客户端
 
 ```bash
 python web_api.py
 ```
 默认监听 8000 端口，提供 Web 聊天与智能体发现。
 
-### 2. 启动 anp agent openlink publisher 发布端
+### 2. 启动 anp agent openchat publisher 发布端
 
 ```bash
 python web_anp_llmagent_launcher.py
@@ -102,8 +102,8 @@ python -m anp_mcpwrapper.mcp_stdio_server -t sse
 ├── setup/               # 后续增加安装方案（当前暂时无用）
 ├── anp_llmapp.py        # 直接调用ANP接口的应用
 ├── anp_llmagent.py      # 计划开发为开箱即用的agent
-├── web_api.py           # anp agent openlink
-└── web_anp_llmagent_launcher.py # anp agent openlink publisher
+├── web_api.py           # anp agent openchat
+└── web_anp_llmagent_launcher.py # anp agent openchat publisher
 ```
 
 ## API端点
@@ -126,12 +126,12 @@ Publisher API端点
 - 每个智能体拥有唯一 DID，身份可信性可通过开放方式（如域名、ad.json、权威签名、社群背书等）验证。
 
 ### 客户端流程
-1. 启动 anp agent openlink，加载书签，发现和探索智能体。
+1. 启动 anp agent openchat，加载书签，发现和探索智能体。
 2. 通过本地 AI 智能体推荐、探索、与网络智能体聊天。
 3. 需要时进行 DID 身份验证。
 
 ### 发布端流程
-1. 启动 anp agent openlink publisher，选择并运行本地 agent。
+1. 启动 anp agent openchat publisher，选择并运行本地 agent。
 2. 实时监控 agent 状态。
 3. 通过 `/api/public/instances` 对外发布可用 agent 信息。
 
@@ -144,4 +144,4 @@ Publisher API端点
 
 详细鉴权流程请参考代码实现和 [DID WBA规范](https://github.com/agent-network-protocol/AgentNetworkProtocol/blob/main/chinese/03-did%3Awba%E6%96%B9%E6%B3%95%E8%A7%84%E8%8C%83.md)
 
-如需进一步了解 anp agent openlink 及其开放互联能力，欢迎参考代码和文档，或直接运行体验。
+如需进一步了解 anp agent openchat 及其开放互联能力，欢迎参考代码和文档，或直接运行体验。
