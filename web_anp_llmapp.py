@@ -422,6 +422,7 @@ def anp_test():
             logger.info(f"发送消息: {test_message}")
             # 获取token，如果环境变量中不存在则使用None
             token = os.environ.get('did-token', None)
+    
             chat_result = chat_to_ANP(test_message, token)
             logger.info(f"消息发送结果: {chat_result}")
             logger.info("等待消息处理...")

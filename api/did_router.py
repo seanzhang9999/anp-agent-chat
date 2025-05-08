@@ -26,8 +26,8 @@ async def get_did_document(user_id: str) -> Dict:
     """
     # 构建DID文档路径
     current_dir = Path(__file__).parent.parent.absolute()
-    did_path = current_dir / settings.DID_DOCUMENTS_PATH / f"user_{user_id}" / settings.DID_DOCUMENT_FILENAME
-    
+    did_path = current_dir.joinpath("anp_core","did_keys",f"user_{user_id}" , "did.json" )
+     
     if not did_path.exists():
         raise HTTPException(status_code=404, detail=f"DID document not found for user {user_id}")
     

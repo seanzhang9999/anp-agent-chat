@@ -101,7 +101,7 @@ async function clearChatHistory() {
         if (data.success) {
             // 清空当前消息区域
             chatMessages.innerHTML = '';
-            addSystemMessage('聊天历史已清除');
+            // 不添加系统消息，保持界面完全清空
         }
     } catch (error) {
         console.error('清除聊天历史出错:', error);
@@ -119,6 +119,10 @@ async function checkServerStatus() {
         
         // 如果服务器在运行 检查聊天状态
         if (serverRunning) {
+            // 如果有DID信息，显示它
+            if (data.did_id && data.did_document_path) {
+                addSystemMessage(`DID ID: ${data.did_id}\nDID文档路径: ${data.did_document_path}`);
+            }
             checkChatStatus();
         }
     } catch (error) {
@@ -279,11 +283,17 @@ async function toggleServer() {
             updateServerStatus();
             
             // 添加系统消息
-            addSystemMessage(serverRunning ? '服务器已启动' : '服务器已停止');
-            
-            // 如果启动了服务器，检查聊天状态
             if (serverRunning) {
+                // 如果有DID信息，显示它
+                if (data.did_id && data.did_document_path) {
+                    addSystemMessage(`服务器已启动\nDID ID: ${data.did_id}\nDID文档路径: ${data.did_document_path}`);
+                } else {
+                    addSystemMessage('服务器已启动');
+                }
+                // 检查聊天状态
                 checkChatStatus();
+            } else {
+                addSystemMessage('服务器已停止');
             }
         } else {
             addSystemMessage(`服务器操作失败: ${data.message}`);

@@ -5,6 +5,8 @@ import logging
 import os
 import threading
 import time
+from core.config import settings
+import secrets
 import re
 from urllib.parse import urlparse
 from pathlib import Path
@@ -25,6 +27,12 @@ from web_anp_llmapp import (
     server_thread, chat_thread,
     server_running, chat_running,
     client_chat_messages, client_new_message_event
+)
+from anp_core.auth.did_auth import (
+    generate_or_load_did, 
+    send_authenticated_request,
+    send_request_with_token,
+    DIDWbaAuthHeader
 )
 
 # 导入所需的库
@@ -261,7 +269,9 @@ async def send_message(request: MessageRequest):
                 # 发送到ANP服务器
                 print(f"将向智能体发送消息: {custom_msg}")
                 chat_running = False
-                chat_to_ANP(custom_msg, token=token)
+                unique_id = os.environ.get('unique_id')
+
+                chat_to_ANP(custom_msg, token=token, unique_id_arg = unique_id)
                 
                 # 添加系统消息到聊天历史
                 chat_history.append({
@@ -307,7 +317,10 @@ async def send_message(request: MessageRequest):
                     # 发送到ANP服务器
                     print(f"将向智能体发送消息: {custom_msg}")
                     chat_running = False
-                    chat_to_ANP(custom_msg, token=token)
+
+                    unique_id = os.environ.get('unique_id')
+                    
+                    chat_to_ANP(custom_msg, token=token, unique_id_arg = unique_id)
                     
                     # 添加系统消息到聊天历史
                     chat_history.append({
@@ -469,9 +482,7 @@ def check_agent_messages():
 # 获取聊天历史
 @app.get("/api/chat/history")
 async def get_chat_history():
-    # 先检查是否有新的智能体消息
-    check_agent_messages()
-    return {"success": True, "history": chat_history}
+   return {"success": True, "history": chat_history}
 
 # 清除聊天历史
 @app.post("/api/chat/clear-history")
@@ -488,20 +499,56 @@ async def get_server_status():
     from anp_core.server.server import server_status
     # 更新全局变量以保持一致
     global server_running
+    # 确保server_running反映实际的服务器状态
     server_running = server_status.is_running()
-    return {"running": server_running}
+    
+    # 如果服务器正在运行，返回DID信息
+    if server_running:
+        did_id = os.environ.get('did-id', '')
+        # 尝试获取DID文档路径
+        unique_id = os.environ.get('unique-id', '')
+        if unique_id:
+            user_dir = Path(settings.DID_KEYS_DIR) / f"user_{unique_id}"
+            did_document_path = user_dir / settings.DID_DOCUMENT_FILENAME
+            return {
+                "running": server_running,
+                "did_id": did_id,
+                "did_document_path": str(did_document_path) if did_document_path.exists() else ''
+            }
+    
+    # 如果服务器未运行或无法获取DID信息，只返回运行状态
+    # 确保返回的running状态为False
+    return {"running": False}
 
 @app.post("/api/server/start")
 async def start_server():
     global server_running
     try:
         if not server_running:
+            # demo期间每次生成新的did
+            unique_id = secrets.token_hex(8)
+            
+            os.environ['unique-id'] = unique_id
+            logging.info(f"使用唯一ID: {unique_id}")
+            
+            did_document, keys, user_dir = await generate_or_load_did(unique_id)
+            os.environ['did-id'] = did_document.get('id')
+            did_document_path = Path(user_dir) / settings.DID_DOCUMENT_FILENAME
+            private_key_path = Path(user_dir) / settings.PRIVATE_KEY_FILENAME
+            
+            logging.info(f"DID文档路径: {did_document_path}")
+            logging.info(f"私钥路径: {private_key_path}")
             result = resp_start()
             if result:
                 # 直接从anp_core.server.server模块获取最新的服务器状态
                 from anp_core.server.server import server_status
                 server_running = server_status.is_running()
-                return {"success": True}
+                # 返回DID信息和文档路径
+                return {
+                    "success": True,
+                    "did_id": did_document.get('id'),
+                    "did_document_path": str(did_document_path)
+                }
             else:
                 return {"success": False, "message": "服务器启动失败"}
         return {"success": True, "message": "服务器已经在运行"}
