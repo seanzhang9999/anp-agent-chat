@@ -298,10 +298,11 @@ async def send_message(request: MessageRequest):
                 # 调用大模型处理函数
                 response = await llm_handler(message, chat_history)
                 
+                response = "localAI：" + response
                 # 添加助手回复到聊天历史
                 chat_history.append({
                     "type": "assistant",
-                    "message": "localAI：" + response,
+                    "message": response,
                     "timestamp": time.time()
                 })
                 
@@ -366,27 +367,25 @@ def check_agent_messages():
         if not client_chat_messages:
             return
         
-        # 获取当前时间
-        current_time = time.time()
-        
-        # 只处理上次检查后的新消息
+        # 直接遍历所有智能体消息，避免仅依赖时间戳
         for msg in client_chat_messages:
-            # 检查消息时间戳是否晚于上次检查时间
-            if 'timestamp' in msg and msg['timestamp'] > last_agent_check_time:
+            # 只处理assistant类型且from_agent为True的消息，或anl_nlp类型的远程智能体消息
+            if (msg.get('type') == 'assistant' and msg.get('from_agent', False)) or msg.get('type') == 'anl_nlp':
                 # 检查这条消息是否已经在聊天历史中
-                if not any(h.get('timestamp') == msg.get('timestamp') for h in chat_history):
-                    # 添加到聊天历史
+                if not any(h.get('timestamp') == msg.get('timestamp') and h.get('message') == msg.get('content', '') for h in chat_history):
+                    # 直接写入聊天历史
                     chat_history.append({
-                        "type": "assistant",
+                        "type": msg.get('type', 'assistant'),
                         "message": msg.get('content', ''),
                         "timestamp": msg.get('timestamp'),
-                        "from_agent": True
+                        "from_agent": msg.get('from_agent', False)
                     })
                     logging.info(f"添加智能体消息到聊天历史: {msg.get('content', '')}")
-        
-        # 更新上次检查时间
-        last_agent_check_time = current_time
-        
+            else:
+                # 非 anl_nlp 类型消息可根据需要处理或跳过，这里简单跳过
+                continue
+        # 更新时间为当前时间
+        last_agent_check_time = time.time()
         # 保存聊天历史
         save_chat_history()
     except Exception as e:
@@ -916,27 +915,25 @@ def check_agent_messages():
         if not client_chat_messages:
             return
         
-        # 获取当前时间
-        current_time = time.time()
-        
-        # 只处理上次检查后的新消息
+        # 直接遍历所有智能体消息，避免仅依赖时间戳
         for msg in client_chat_messages:
-            # 检查消息时间戳是否晚于上次检查时间
-            if 'timestamp' in msg and msg['timestamp'] > last_agent_check_time:
+            # 只处理assistant类型且from_agent为True的消息，或anl_nlp类型的远程智能体消息
+            if msg.get('type') == 'anl_nlp':
                 # 检查这条消息是否已经在聊天历史中
-                if not any(h.get('timestamp') == msg.get('timestamp') for h in chat_history):
-                    # 添加到聊天历史
+                if not any(h.get('timestamp') == msg.get('timestamp') and h.get('message') == msg.get('content', '') for h in chat_history):
+                    # 直接写入聊天历史
                     chat_history.append({
-                        "type": "assistant",
+                        "type": msg.get('type', 'assistant'),
                         "message": msg.get('content', ''),
                         "timestamp": msg.get('timestamp'),
                         "from_agent": True
                     })
                     logging.info(f"添加智能体消息到聊天历史: {msg.get('content', '')}")
-        
-        # 更新上次检查时间
-        last_agent_check_time = current_time
-        
+            else:
+                # 非 anl_nlp 类型消息可根据需要处理或跳过，这里简单跳过
+                continue
+        # 更新时间为当前时间
+        last_agent_check_time = time.time()
         # 保存聊天历史
         save_chat_history()
     except Exception as e:
