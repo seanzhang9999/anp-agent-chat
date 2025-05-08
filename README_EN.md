@@ -1,30 +1,44 @@
-# ANP Protocol Authentication Communication Example
+# anp agent openlink Open Interconnected Agent Network Demo Framework
 
 [中文版](README.md)
 
-This is a DID WBA method example implemented using FastAPI and Agent_Connect library, supporting both client and server functionality.
+This project demonstrates an implementation framework of the anp open interconnected agent network, focusing on the anp agent openlink client and the anp agent openlink publisher. It showcases open integration of agents, identity mechanisms, and inter-agent communication capabilities.
 
-## Features
+## Demo Objectives
 
-### resp (Server-side) Features
-- ANP protocol authentication: DID WBA initial authentication, Bearer Token session authentication
-- ANP natural language communication: via the `/wba/anp-nlp` interface
+1. **Anyone** can launch the anp agent openlink client to freely explore the world of anp network agents.
+2. **Any developer** can quickly integrate the anp protocol and independently publish agents via the anp agent openlink publisher.
+3. Agents confirm unique identity via **DID**. Trustworthiness can be provided openly: such as DID publishing domain, rich ad.json info, authoritative DID signature endorsements, and organization/community DIDI signature endorsements.
 
-### req (Client-side) Features
-- Automatically generates DID and keys or loads existing identities
-- Initiates initial authentication and token requests to resp
-- Sends messages to the anp-nlp interface of resp
+## Demo Startup
+
+- **anp agent openlink**: Provides users with AI chat, agent discovery, and chatting with agents. Run `web_api.py`, default port 8000.
+- **anp agent openlink publisher**: Helps service providers launch and monitor multiple local agents, and publishes running agent addresses. Run `web_anp_llmagent_launcher.py`, default port 8080.
+
+## Demo Features
+
+### anp agent openlink
+1. Load agent bookmarks from anp agent openlink publisher.
+2. Explore agents via local AI agent based on anp protocol, learn details, and verify own identity during exploration.
+3. Local AI agent recommends agents based on user needs.
+4. Supports chatting with @network agents.
+5. Multi-turn conversation with local AI agent.
+
+### anp agent openlink publisher
+1. Select and run local agents via dropdown menu.
+2. View agent running status.
+3. Publish running agent addresses via `/api/public/instances` for anp agent openlink to fetch.
 
 ## Installation
 
-### Environment Setup
+### Environment Preparation
 
 1. Clone the project
-2. Create an environment configuration file
+2. Create environment config file
    ```
    cp .env.example .env
    ```
-3. Edit the .env file to set the necessary configuration items
+3. Edit the .env file and set necessary configuration items
 
 ### Install Dependencies with Poetry
 
@@ -38,44 +52,47 @@ poetry install
 
 ## Running Methods
 
-This project provides three different running methods:
+This project supports multiple running methods:
 
-### 1. Direct ANP Interface Calls
+### 1. Start anp agent openlink client
 
-Run `anp_llmapp.py` to directly call the ANP interfaces in `anp_core`:
+```bash
+python web_api.py
+```
+Default listens on port 8000, provides web chat and agent discovery.
+
+### 2. Start anp agent openlink publisher
+
+```bash
+python web_anp_llmagent_launcher.py
+```
+Default listens on port 8080, manages local agents and publishes externally.
+
+### 3. Command line call to ANP interface for interactive experience
 
 ```bash
 python anp_llmapp.py
 ```
 
-### 2. MCP Interface Calls via stdio
-
-Run `mcp_stdio_client.py` to call the ANP interfaces wrapped by `mcp_stdio_server.py` via stdio, which can debug the complete MCP process:
+### 4. Call MCP interface via stdio/SSE to experience feasibility in MCP client
 
 ```bash
-# Start the server
+# Start server
 python -m anp_mcpwrapper.mcp_stdio_server
-
-# Start the client
+# Start client
 python -m anp_mcpwrapper.mcp_stdio_client
-```
-
-### 3. SSE Interface Calls
-
-Start `mcp_stdio_server.py` as an SSE service and call it via the SSE interface:
-
-```bash
+# Or start as SSE
 python -m anp_mcpwrapper.mcp_stdio_server -t sse
 ```
 
-**Note**: Methods 2 and 3 have been successfully configured and tested in the TRAE environment.
+**Note**: MCP-related methods have been tested and passed in the TRAE environment.
 
 ## Project Structure
 
 ```
 .
 ├── anp_core/            # Encapsulated ANP interfaces for developers
-├── anp_mcpwrapper/      # MCP interface implementation
+├── anp_mcpwrapper/      # MCP interface integration
 ├── api/                 # API routing module
 ├── core/                # Application framework
 ├── doc/                 # Documentation and test keys
@@ -84,30 +101,15 @@ python -m anp_mcpwrapper.mcp_stdio_server -t sse
 ├── logs/                # Log files
 ├── setup/               # Installation solutions (currently unused)
 ├── anp_llmapp.py        # Application directly calling ANP interfaces
-└── anp_llmagent.py      # Planned to be developed as an out-of-the-box agent
+├── anp_llmagent.py      # Planned out-of-the-box agent
+├── web_api.py           # anp agent openlink
+└── web_anp_llmagent_launcher.py # anp agent openlink publisher
 ```
-
-## Project Description
-
-1. **anp_core**: Encapsulated ANP interfaces for developers, currently DID authentication is for local testing, the next version will add practical DID services
-
-2. **anp_mcpwrapper**: Implements MCP interface integration, currently tested successfully in the TRAE environment, not successful in the Claude environment
-
-3. **api/core**: Application framework, providing API routing and core configuration
-
-4. **doc**: Documentation and test keys
-
-5. **examples**: More examples for developers will be added in the future
-
-6. **utils/logs**: Utility functions and log files
-
-7. **setup**: Installation solutions will be added later, currently unused
-
-8. **anp_llmagent.py**: Planned to be developed as an out-of-the-box agent, interoperable with `anp_llmapp.py`/MCP calls
 
 ## API Endpoints
 
-- `GET /agents/example/ad.json`: Get agent description information
+Agent API endpoints
+- `GET /agents/example/ad.json`: Get agent description info
 - `GET /ad.json`: Get advertisement JSON data, requires authentication
 - `POST /auth/did-wba`: DID WBA initial authentication
 - `GET /auth/verify`: Verify Bearer Token
@@ -115,26 +117,31 @@ python -m anp_mcpwrapper.mcp_stdio_server -t sse
 - `POST /wba/anp-nlp`: ANP natural language communication interface
 - `GET /wba/user/{user_id}/did.json`: Get user DID document
 - `PUT /wba/user/{user_id}/did.json`: Save user DID document
+Publisher API endpoint
+- `GET /api/public/instances`: Get published local agent instances (provided by publisher)
 
 ## Workflow
 
-### Server Workflow
-1. Start the server and listen for requests
-2. Receive DID WBA authentication requests and verify signatures
-3. Generate and return access tokens
-4. Process subsequent requests using tokens
+### Agent Identity and Trust
+- Each agent has a unique DID. Trustworthiness can be verified openly (such as domain, ad.json, authoritative signature, community endorsement, etc).
 
 ### Client Workflow
-1. Generate or load DID documents and private keys
-2. Send requests to the server with DID WBA signature headers
-3. Receive and save tokens
-4. Use tokens for subsequent requests
+1. Start anp agent openlink, load bookmarks, discover and explore agents.
+2. Recommend, explore, and chat with network agents via local AI agent.
+3. Perform DID identity verification when needed.
 
-## Authentication Details
+### Publisher Workflow
+1. Start anp agent openlink publisher, select and run local agents.
+2. Monitor agent status in real time.
+3. Publish available agent info externally via `/api/public/instances`.
 
-The example implements two authentication methods:
+## Authentication Description
 
-1. **Initial DID WBA Authentication**: Signature verification according to DID WBA specification
-2. **Bearer Token Authentication**: JWT token for subsequent request authentication
+This project implements two authentication methods:
 
-For detailed authentication processes, refer to the code implementation and [DID WBA Specification](https://github.com/agent-network-protocol/AgentNetworkProtocol/blob/main/chinese/03-did%3Awba%E6%96%B9%E6%B3%95%E8%A7%84%E8%8C%83.md)
+1. **Initial DID WBA Authentication**: Signature verification according to DID WBA specification.
+2. **Bearer Token Authentication**: JWT token for subsequent request authentication.
+
+For detailed authentication process, please refer to the code implementation and [DID WBA Specification](https://github.com/agent-network-protocol/AgentNetworkProtocol/blob/main/chinese/03-did%3Awba%E6%96%B9%E6%B3%95%E8%A7%84%E8%8C%83.md)
+
+For more information about anp agent openlink and its open interconnection capabilities, please refer to the code and documentation, or run it directly to experience.

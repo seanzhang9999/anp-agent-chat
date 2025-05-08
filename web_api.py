@@ -123,7 +123,7 @@ class Bookmark(BaseModel):
     discovery: Optional[str] = None
 
 
-# 定义发现智能体请求模型
+# 定义探索智能体请求模型
 class DiscoverAgentRequest(BaseModel):
     bookmark_id: str
     url: str
@@ -582,12 +582,12 @@ async def delete_bookmark(bookmark_id: str):
         return {"success": False, "message": str(e)}
 
 
-# 发现智能体细节描述
+# 探索智能体细节描述
 @app.post("/api/find/")
 async def discoveragent(request: DiscoverAgentRequest):
     try:
         # 添加调试日志
-        logging.info("开始处理发现智能体请求")
+        logging.info("开始处理探索智能体请求")
         
         # 获取请求数据
         bookmark_id = request.bookmark_id
@@ -595,7 +595,7 @@ async def discoveragent(request: DiscoverAgentRequest):
         port = request.port
         
         # 处理请求逻辑
-        logging.info(f"处理智能体发现请求: bookmark_id={bookmark_id}, url={url}, port={port}")
+        logging.info(f"处理智能体探索请求: bookmark_id={bookmark_id}, url={url}, port={port}")
         
         
         # 初始化ANPTool
@@ -805,19 +805,19 @@ async def discoveragent(request: DiscoverAgentRequest):
             return {"success": False, "message": f"获取智能体信息失败: {str(e)}"}
         
       
-        logging.info(f"智能体发现完成: {bookmark_id}")
+        logging.info(f"智能体探索完成: {bookmark_id}")
         
         # 返回结果给前端
         return {
             "success": True, 
-            "message": "智能体发现成功",
-            "discovery": discovery_results  # 返回发现结果给前端
+            "message": "智能体探索成功",
+            "discovery": discovery_results  # 返回探索结果给前端
         }
     except Exception as e:
-        logging.error(f"处理发现智能体请求出错: {e}")
+        logging.error(f"处理探索智能体请求出错: {e}")
         return {"success": False, "message": str(e)}
     finally:
-        logging.info("处理发现智能体请求完成")
+        logging.info("处理探索智能体请求完成")
 
 
 

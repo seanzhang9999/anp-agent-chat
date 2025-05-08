@@ -616,7 +616,7 @@ function renderBookmarks() {
         bookmarkInfo.appendChild(nameEl);
         bookmarkInfo.appendChild(detailsEl);
         
-        // 创建详情容器（包含DID、URL、端口和发现信息）
+        // 创建详情容器（包含DID、URL、端口和探索信息）
         if ((bookmark.did || bookmark.url || bookmark.port) || bookmark.discovery) {
             const discoveryContainer = document.createElement('div');
             discoveryContainer.className = 'discovery-container';
@@ -652,7 +652,7 @@ function renderBookmarks() {
                 connectionInfoEl.innerHTML = `<strong>连接信息:</strong><br>${detailsText.join('<br>')}`;
                 discoveryContent.appendChild(connectionInfoEl);
                 
-                // 如果同时有发现信息，添加分隔线
+                // 如果同时有探索信息，添加分隔线
                 if (bookmark.discovery) {
                     const divider = document.createElement('hr');
                     divider.className = 'details-divider';
@@ -660,7 +660,7 @@ function renderBookmarks() {
                 }
             }
             
-            // 添加发现信息（如果有）
+            // 添加探索信息（如果有）
             if (bookmark.discovery) {
                 const discoveryInfoEl = document.createElement('pre');
                 discoveryInfoEl.className = 'discovery-info';
@@ -683,7 +683,7 @@ function renderBookmarks() {
         
         const discoverBtn = document.createElement('button');
         discoverBtn.className = 'btn btn-sm btn-outline-info discover-btn';
-        discoverBtn.textContent = '发现';
+        discoverBtn.textContent = '探索';
         discoverBtn.onclick = () => discoverAgent(bookmark);
         
         const deleteBtn = document.createElement('button');
@@ -702,7 +702,7 @@ function renderBookmarks() {
     });
 }
 
-// 发现智能体
+// 探索智能体
 async function discoverAgent(bookmark) {
     if (!chatRunning) {
         addSystemMessage('请先启动聊天');
@@ -710,17 +710,17 @@ async function discoverAgent(bookmark) {
     }
     
     if (!bookmark.url) {
-        addSystemMessage('该智能体没有URL信息，无法进行发现');
+        addSystemMessage('该智能体没有URL信息，无法进行探索');
         return;
     }
-    console.error('发现智能体:', bookmark);
+    console.error('探索智能体:', bookmark);
 
 
     // 添加等待提示
     const waitingMsg = document.createElement('div');
-    console.info('发现智能体:', bookmark);
+    console.info('探索智能体:', bookmark);
     waitingMsg.className = 'system-message waiting-message discover-waiting';
-    waitingMsg.textContent = '正在发现智能体...';
+    waitingMsg.textContent = '正在探索智能体...';
     chatMessages.appendChild(waitingMsg);
     scrollToBottom();
     
@@ -739,7 +739,7 @@ async function discoverAgent(bookmark) {
         
         const data = await response.json();
         
-        console.log('发现智能体:', data);
+        console.log('探索智能体:', data);
         // 移除等待提示
         const waitingElement = document.querySelector('.discover-waiting');
         if (waitingElement) {
@@ -749,14 +749,14 @@ async function discoverAgent(bookmark) {
         if (data.success) {
             // 更新书签的discovery字段
             bookmark.discovery = data.discovery.summary;
-            console.log('发现智能体:', bookmark.discovery);
+            console.log('探索智能体:', bookmark.discovery);
             // 重新渲染书签列表
             renderBookmarks();
             
             // 添加成功消息
-            addSystemMessage(`智能体发现成功: ${data.message}`);
+            addSystemMessage(`智能体探索成功: ${data.message}`);
         } else {
-            addSystemMessage(`智能体发现失败: ${data.message}`);
+            addSystemMessage(`智能体探索失败: ${data.message}`);
         }
     } catch (error) {
         // 移除等待提示
@@ -765,8 +765,8 @@ async function discoverAgent(bookmark) {
             waitingElement.remove();
         }
         
-        console.error('发现智能体出错:', error);
-        addSystemMessage('发现智能体失败，请检查控制台获取详细信息');
+        console.error('探索智能体出错:', error);
+        addSystemMessage('探索智能体失败，请检查控制台获取详细信息');
     }
 }
 
