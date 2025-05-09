@@ -18,6 +18,23 @@
         flex-direction: column;
         gap: 10px;
     }
+    
+    /* 书签表单样式 */
+    .bookmark-form {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 15px;
+    }
+    
+    .bookmark-buttons {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .bookmark-buttons button {
+        flex: 1;
+    }
 
     .bookmark-info {
         flex: 1;
@@ -109,9 +126,12 @@
             <div class="agent-bookmarks">
                 <h3>智能体书签</h3>
                 <div class="bookmark-form">
-                    <input type="text" id="agent-name" placeholder="http://localhost:8080/api/public/instances">
-                    <button id="load-bookmarks" class="btn btn-sm btn-outline-primary">加载</button>
+                <input type="text" id="agent-name" placeholder="http://localhost:8080/api/public/instances">
+                <div class="bookmark-buttons">
+                    <button id="load-bookmarks-local" class="btn btn-sm btn-outline-primary">本地加载</button>
+                    <button id="load-bookmarks-url" class="btn btn-sm btn-outline-success">网络加载</button>
                 </div>
+            </div>
                 <div id="bookmarks-list" class="bookmarks-container">
                     <div class="no-bookmarks">暂无智能体书签</div>
                 </div>

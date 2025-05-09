@@ -9,7 +9,8 @@ const recommendButton = document.getElementById('recommend-button');
 const chatMessages = document.getElementById('chat-messages');
 const bookmarksList = document.getElementById('bookmarks-list');
 const agentNameInput = document.getElementById('agent-name');
-const loadBookmarksBtn = document.getElementById('load-bookmarks');
+const loadBookmarksLocalBtn = document.getElementById('load-bookmarks-local');
+const loadBookmarksUrlBtn = document.getElementById('load-bookmarks-url');
 const clearHistoryBtn = document.getElementById('clear-history');
 
 // 状态变量
@@ -29,7 +30,7 @@ const API_ENDPOINTS = {
     sendMessage: '/api/chat/send',
     getBookmarks: '/api/bookmarks',
     addBookmark: '/api/bookmarks/add',
-    discoverAgent: '/api/find/'
+    discoverAgent: '/api/discoveragent/'
 };
 
 // 初始化
@@ -47,9 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
     messageInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
-    loadBookmarksBtn.addEventListener('click', () => {
+    loadBookmarksLocalBtn.addEventListener('click', () => {
+        loadBookmarks(); // 本地加载，不传URL参数
+    });
+    
+    loadBookmarksUrlBtn.addEventListener('click', () => {
         const url = agentNameInput.value.trim() || 'http://localhost:8080/api/public/instances';
-        loadBookmarks(url);
+        loadBookmarks(url); // 网络加载，传入URL参数
     });
     clearHistoryBtn.addEventListener('click', clearChatHistory);
 });
@@ -584,24 +589,55 @@ function scrollToBottom() {
 async function loadBookmarks(url) {
     try {
         let response;
+        let loadingMessage;
+        
         if (url) {
-            response = await fetch(`${API_ENDPOINTS.getBookmarks}?url=${encodeURIComponent(url)}`);
+            // 网络加载
+            loadingMessage = '正在从网络加载智能体书签...';
+            response = await fetch(`${API_ENDPOINTS.getBookmarks}/load-from-url`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url: url })
+            });
         } else {
+            // 本地加载
+            loadingMessage = '正在加载本地智能体书签...';
             response = await fetch(API_ENDPOINTS.getBookmarks);
         }
         
+        // 添加加载提示
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'system-message';
+        loadingEl.textContent = loadingMessage;
+        chatMessages.appendChild(loadingEl);
+        scrollToBottom();
+        
         const data = await response.json();
+        
+        // 移除加载提示
+        const loadingElements = document.querySelectorAll('.system-message');
+        if (loadingElements.length > 0) {
+            loadingElements[loadingElements.length - 1].remove();
+        }
         
         if (data.success && data.bookmarks) {
             bookmarks = data.bookmarks;
             renderBookmarks();
+            
+            // 添加成功提示
+            const sourceType = url ? '网络' : '本地';
+            addSystemMessage(`已成功从${sourceType}加载 ${bookmarks.length} 个智能体书签`);
         } else {
             console.error('加载书签失败:', data.message);
-            addSystemMessage(`加载书签失败: ${data.message}`);
+            const sourceType = url ? '网络' : '本地';
+            addSystemMessage(`从${sourceType}加载书签失败: ${data.message || '未知错误'}`);
         }
     } catch (error) {
         console.error('加载书签出错:', error);
-        addSystemMessage('加载书签失败，请检查控制台获取详细信息');
+        const sourceType = url ? '网络' : '本地';
+        addSystemMessage(`从${sourceType}加载书签失败，请检查网络连接或URL格式`);
     }
 }
 

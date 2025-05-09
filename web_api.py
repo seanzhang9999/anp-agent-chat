@@ -1,25 +1,30 @@
 """DID WBA Web API - 为Web界面提供API接口"""
+
+# Python 标准库
 import asyncio
 import json
 import logging
 import os
+import re
+import secrets
 import threading
 import time
-from core.config import settings
-import secrets
-import re
-from urllib.parse import urlparse
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime
-from openai import AsyncAzureOpenAI
+from urllib.parse import urlparse
+
+# 第三方库
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from openai import AsyncAzureOpenAI
 from pydantic import BaseModel
 
-# 导入anp_llmapp_web中的功能
+# 本地模块
+from core.config import settings
 from web_anp_llmapp import (
     resp_start, resp_stop,
     start_chat, stop_chat,
@@ -34,11 +39,6 @@ from anp_core.auth.did_auth import (
     send_request_with_token,
     DIDWbaAuthHeader
 )
-
-# 导入所需的库
-import os
-import httpx
-import asyncio
 
 async def llm_recommand_handler(message: str):
     """
