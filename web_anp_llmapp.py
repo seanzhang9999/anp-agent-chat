@@ -426,7 +426,7 @@ def anp_test():
             chat_result = chat_to_ANP(test_message, token)
             logger.info(f"消息发送结果: {chat_result}")
             logger.info("等待消息处理...")
-            time.sleep(5)  # 等待消息处理
+            time.sleep(20)  # 等待消息处理
         except ImportError:
             logger.error("缺少httpx模块，无法发送消息。请使用 'pip install httpx' 安装该模块。")
             print("缺少httpx模块，无法发送消息。请使用 'pip install httpx' 安装该模块。")
