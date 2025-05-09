@@ -168,7 +168,7 @@ def ANP_resp_stop():
         
         # 等待服务器线程结束
         if server_status.thread and server_status.thread.is_alive():
-            server_status.thread.join(timeout=5.0)  # 设置超时时间，避免无限等待
+            server_status.thread.join(timeout=10.0)  # 设置超时时间，避免无限等待
             
         logger.info("服务器已停止")
         return True

@@ -297,7 +297,8 @@ async def client_notify_chat_thread(message_data: Dict[str, Any]):
     # 在控制台显示通知
     logging.info(f"ANP客户请求: {message_data['user_message']}")
     logging.info(f"ANP对方响应: {message_data['assistant_message']}")
-    
+   
+
     # 打印到控制台，确保在聊天线程中可见
     print(f"\nANP-req从本地发出: {message_data['user_message']}")
     print(f"\nANP-req从@{settings.TARGET_SERVER_PORT}收到:  {message_data['assistant_message']}\n")
@@ -421,10 +422,11 @@ def anp_test():
             logger.info(f"发送消息: {test_message}")
             # 获取token，如果环境变量中不存在则使用None
             token = os.environ.get('did-token', None)
+    
             chat_result = chat_to_ANP(test_message, token)
             logger.info(f"消息发送结果: {chat_result}")
             logger.info("等待消息处理...")
-            time.sleep(5)  # 等待消息处理
+            time.sleep(20)  # 等待消息处理
         except ImportError:
             logger.error("缺少httpx模块，无法发送消息。请使用 'pip install httpx' 安装该模块。")
             print("缺少httpx模块，无法发送消息。请使用 'pip install httpx' 安装该模块。")

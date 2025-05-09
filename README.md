@@ -1,20 +1,34 @@
-# anp协议认证通信开发示例
+# anp agent openchat 开放互联智能体网络演示框架
 
 [English Version](README_EN.md)
 
-这是一个使用FastAPI和Agent_Connect库实现的DID WBA方法示例，同时支持客户端和服务器功能。
+本项目展示了 anp 开放互联智能体网络的一个实现框架，围绕 anp agent openchat 客户端和 anp agent openchat publisher 发布端，演示了智能体的开放集成、身份机制与互联通信能力。
 
-## 功能特点
+## 演示目标
 
-### resp（服务端）功能
-- anp协议认证：DID WBA首次认证，Bearer Token会话认证
-- anp自然语言通信：/wba/anp-nlp接口进行通信
+1. **任何人**都可以启动 anp agent openchat 客户端，自由探索 anp 网络智能体世界。
+2. **任何开发者**都可以快速集成 anp 协议，并通过 anp agent openchat publisher 自主可控地发布智能体。
+3. 智能体之间通过 **DID** 确认身份唯一性，可信性可通过开放方式提供：如 DID 发布域名、ad.json 丰富信息、权威方 DID 签名背书、组织/社群的 DIDI 签名背书等。
 
-### req（客户端）功能
-- 自动生成DID和密钥或加载已有身份
-- 向resp发起首次认证和令牌申请
-- 向resp的anp-nlp接口发起消息
-server
+## 演示启动
+
+- **anp agent openchat**：为使用者提供 AI 聊天、发现智能体、与智能体聊天。运行 `web_api.py`，默认启动在 8000 端口。
+- **anp agent openchat publisher**：帮助服务者启动和监控本地多个 agent，并公布运行中的 agent 地址。运行 `web_anp_llmagent_launcher.py`，默认启动在 8080 端口。
+
+## 演示功能
+
+### anp agent openchat
+1. 从 anp agent openchat publisher 加载智能体书签。
+2. 通过本地 AI 智能体基于 anp 协议探索智能体，了解其细节，探索中需验证自身身份。
+3. 本地 AI 智能体根据用户需求推荐智能体。
+4. 支持 @网络智能体 聊天。
+5. 与本地 AI 智能体多轮对话交流。
+
+### anp agent openchat publisher
+1. 下拉菜单选择并运行本地智能体。
+2. 查看智能体运行状况。
+3. 运行中的智能体地址通过 `/api/public/instances` 发布，供 anp agent openchat 获取。
+
 ## 安装方法
 
 ### 环境准备
@@ -24,9 +38,9 @@ server
    ```
    cp .env.example .env
    ```
-3. 编辑.env文件，设置必要的配置项
+3. 编辑 .env 文件，设置必要的配置项
 
-### 使用Poetry安装依赖
+### 使用 Poetry 安装依赖
 
 ```bash
 # 激活虚拟环境(如果已存在)
@@ -38,37 +52,40 @@ poetry install
 
 ## 运行方法
 
-本项目提供三种不同的运行方式：
+本项目支持多种运行方式：
 
-### 1. 直接调用ANP接口
+### 1. 启动 anp agent openchat 客户端
 
-通过运行`anp_llmapp.py`，直接调用`anp_core`中的ANP接口：
+```bash
+python web_api.py
+```
+默认监听 8000 端口，提供 Web 聊天与智能体发现。
+
+### 2. 启动 anp agent openchat publisher 发布端
+
+```bash
+python web_anp_llmagent_launcher.py
+```
+默认监听 8080 端口，管理本地 agent 并对外发布。
+
+### 3. 命令行方式调用 ANP 接口，体验交互过程
 
 ```bash
 python anp_llmapp.py
 ```
 
-### 2. 通过stdio调用MCP接口
-
-运行`mcp_stdio_client.py`，通过stdio调用`mcp_stdio_server.py`封装的ANP接口，可以调试完整MCP流程：
+### 4. 通过 stdio/SSE 调用 MCP 接口，体验在MCP客户端的可行性
 
 ```bash
 # 启动服务端
 python -m anp_mcpwrapper.mcp_stdio_server
-
 # 启动客户端
 python -m anp_mcpwrapper.mcp_stdio_client
-```
-
-### 3. 通过SSE接口调用
-
-将`mcp_stdio_server.py`启动为SSE服务，通过SSE接口调用：
-
-```bash
+# 或以 SSE 方式启动
 python -m anp_mcpwrapper.mcp_stdio_server -t sse
 ```
 
-**注意**：方法2和方法3均已在TRAE环境中配置测试成功。
+**注意**：MCP 相关方法已在 TRAE 环境中测试通过。
 
 ## 项目结构
 
@@ -84,57 +101,47 @@ python -m anp_mcpwrapper.mcp_stdio_server -t sse
 ├── logs/                # 日志文件
 ├── setup/               # 后续增加安装方案（当前暂时无用）
 ├── anp_llmapp.py        # 直接调用ANP接口的应用
-└── anp_llmagent.py      # 计划开发为开箱即用的agent
+├── anp_llmagent.py      # 计划开发为开箱即用的agent
+├── web_api.py           # anp agent openchat
+└── web_anp_llmagent_launcher.py # anp agent openchat publisher
 ```
-
-## 项目说明
-
-1. **anp_core**：封装便于开发者调用的ANP接口，当前DID认证为本地测试，下一版本将增加实用的DID服务
-
-2. **anp_mcpwrapper**：实现了MCP接口的对接，目前在TRAE环境中测试成功，Claude环境测试不成功
-
-3. **api/core**：应用框架，提供API路由和核心配置
-
-4. **doc**：文档说明和测试用密钥
-
-5. **examples**：未来将增加面向开发者的更多示例
-
-6. **utils/logs**：工具函数和日志文件
-
-7. **setup**：后续将增加安装方案，当前文件暂时无用
-
-8. **anp_llmagent.py**：计划开发为开箱即用的agent，与`anp_llmapp.py`/MCP调用可以互通
 
 ## API端点
 
+Agent API端点
 - `GET /agents/example/ad.json`: 获取代理描述信息
-- `GET /ad.json`: 获取广告JSON数据，需要进行鉴权
+- `GET /ad.json`: 获取广告JSON数据，需要鉴权
 - `POST /auth/did-wba`: DID WBA首次鉴权
 - `GET /auth/verify`: 验证Bearer Token
 - `GET /wba/test`: 测试DID WBA认证
 - `POST /wba/anp-nlp`: ANP自然语言通信接口
 - `GET /wba/user/{user_id}/did.json`: 获取用户DID文档
 - `PUT /wba/user/{user_id}/did.json`: 保存用户DID文档
+Publisher API端点
+- `GET /api/public/instances`: 获取已发布的本地智能体实例（由 publisher 提供）
 
 ## 工作流程
 
-### 服务器流程
-1. 启动服务器，监听请求
-2. 接收DID WBA认证请求，验证签名
-3. 生成并返回访问令牌
-4. 处理后续使用令牌的请求
+### 智能体身份与互信
+- 每个智能体拥有唯一 DID，身份可信性可通过开放方式（如域名、ad.json、权威签名、社群背书等）验证。
 
 ### 客户端流程
-1. 生成或加载DID文档和私钥
-2. 向服务器发送带有DID WBA签名头的请求
-3. 接收令牌并保存
-4. 使用令牌发送后续请求
+1. 启动 anp agent openchat，加载书签，发现和探索智能体。
+2. 通过本地 AI 智能体推荐、探索、与网络智能体聊天。
+3. 需要时进行 DID 身份验证。
+
+### 发布端流程
+1. 启动 anp agent openchat publisher，选择并运行本地 agent。
+2. 实时监控 agent 状态。
+3. 通过 `/api/public/instances` 对外发布可用 agent 信息。
 
 ## 鉴权说明
 
-示例实现了两种鉴权方式：
+本项目实现了两种鉴权方式：
 
-1. **首次DID WBA鉴权**：根据DID WBA规范进行签名验证
-2. **Bearer Token鉴权**：通过JWT令牌进行后续请求鉴权
+1. **首次DID WBA鉴权**：根据DID WBA规范进行签名验证。
+2. **Bearer Token鉴权**：通过JWT令牌进行后续请求鉴权。
 
-详细的鉴权流程请参考代码实现和[DID WBA规范](https://github.com/agent-network-protocol/AgentNetworkProtocol/blob/main/chinese/03-did%3Awba%E6%96%B9%E6%B3%95%E8%A7%84%E8%8C%83.md)
+详细鉴权流程请参考代码实现和 [DID WBA规范](https://github.com/agent-network-protocol/AgentNetworkProtocol/blob/main/chinese/03-did%3Awba%E6%96%B9%E6%B3%95%E8%A7%84%E8%8C%83.md)
+
+如需进一步了解 anp agent openchat 及其开放互联能力，欢迎参考代码和文档，或直接运行体验。

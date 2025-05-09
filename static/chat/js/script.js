@@ -70,6 +70,15 @@ async function loadChatHistory() {
                     addUserMessage(item.message);
                 } else if (item.type === 'assistant') {
                     addAssistantMessage(item.message);
+                } else if (item.type === 'anp_nlp') {
+                    // 添加智能体消息，使用与助手消息相同的样式但添加特殊标记
+                    const messageEl = document.createElement('div');
+                    messageEl.className = 'message assistant-message agent-response';
+                    if (item.timestamp) {
+                        messageEl.setAttribute('data-timestamp', item.timestamp);
+                    }
+                    messageEl.textContent = item.message;
+                    chatMessages.appendChild(messageEl);
                 } else if (item.type === 'system') {
                     addSystemMessage(item.message);
                 }
@@ -92,7 +101,7 @@ async function clearChatHistory() {
         if (data.success) {
             // 清空当前消息区域
             chatMessages.innerHTML = '';
-            addSystemMessage('聊天历史已清除');
+            // 不添加系统消息，保持界面完全清空
         }
     } catch (error) {
         console.error('清除聊天历史出错:', error);
@@ -110,6 +119,10 @@ async function checkServerStatus() {
         
         // 如果服务器在运行 检查聊天状态
         if (serverRunning) {
+            // 如果有DID信息，显示它
+            if (data.did_id && data.did_document_path) {
+                addSystemMessage(`DID ID: ${data.did_id}\nDID文档路径: ${data.did_document_path}`);
+            }
             checkChatStatus();
         }
     } catch (error) {
@@ -198,7 +211,7 @@ async function recommendAgent() {
     try {
         // 准备请求数据 - 包含用户消息和所有可用的智能体信息
         const requestData = {
-            message: `请根据用户的需求"${message}"，从以下智能体中推荐最合适的一个，只返回推荐智能体的名称：${JSON.stringify(bookmarks)}`,
+            message: `用户需求："${message}"，\n智能体描述：${JSON.stringify(bookmarks)}`,
             isRecommendation: true
         };
         
@@ -217,20 +230,26 @@ async function recommendAgent() {
         if (waitingElement) {
             waitingElement.remove();
         }
-        
+        console.log(data.response);
         if (data.success) {
-            // 解析大模型的推荐结果
-            const recommendedAgentName = data.response.trim();
+            // 解析大模型的推荐结果，查找以@开头的智能体名称
+            let recommendedAgentName = data.response.trim();
+            
+            // 查找@开头的名称并去掉@符号
+            const atMatch = recommendedAgentName.match(/@([^\s]+)/);
+            if (atMatch && atMatch[1]) {
+                recommendedAgentName = atMatch[1];
+            }
             
             // 查找推荐的智能体
             const recommendedAgent = bookmarks.find(b => 
                 b.name.toLowerCase() === recommendedAgentName.toLowerCase() ||
                 recommendedAgentName.toLowerCase().includes(b.name.toLowerCase())
             );
-            
+
             if (recommendedAgent) {
                 // 添加推荐消息
-                addSystemMessage(`基于给出的信息：${JSON.stringify(bookmarks)}，\n推荐使用智能体: ${recommendedAgent.name}`);
+                addSystemMessage(`基于给出的信息：${message}，\n分析如下: ${data.response}，\n推荐智能体: ${recommendedAgent.name}`);
                 
                 // 自动选择该智能体
                 useBookmark(recommendedAgent);
@@ -264,11 +283,17 @@ async function toggleServer() {
             updateServerStatus();
             
             // 添加系统消息
-            addSystemMessage(serverRunning ? '服务器已启动' : '服务器已停止');
-            
-            // 如果启动了服务器，检查聊天状态
             if (serverRunning) {
+                // 如果有DID信息，显示它
+                if (data.did_id && data.did_document_path) {
+                    addSystemMessage(`服务器已启动\nDID ID: ${data.did_id}\nDID文档路径: ${data.did_document_path}`);
+                } else {
+                    addSystemMessage('服务器已启动');
+                }
+                // 检查聊天状态
                 checkChatStatus();
+            } else {
+                addSystemMessage('服务器已停止');
             }
         } else {
             addSystemMessage(`服务器操作失败: ${data.message}`);
@@ -470,8 +495,7 @@ function startPollingForAgentResponse() {
             if (data.success && data.history) {
                 // 检查是否有新消息
                 const newMessages = data.history.filter(msg => 
-                    msg.type === 'assistant' && 
-                    msg.from_agent === true && 
+                    msg.type === 'anp_nlp' && 
                     !document.querySelector(`.agent-response[data-timestamp="${msg.timestamp}"]`)
                 );
                 
@@ -616,7 +640,7 @@ function renderBookmarks() {
         bookmarkInfo.appendChild(nameEl);
         bookmarkInfo.appendChild(detailsEl);
         
-        // 创建详情容器（包含DID、URL、端口和发现信息）
+        // 创建详情容器（包含DID、URL、端口和探索信息）
         if ((bookmark.did || bookmark.url || bookmark.port) || bookmark.discovery) {
             const discoveryContainer = document.createElement('div');
             discoveryContainer.className = 'discovery-container';
@@ -652,7 +676,7 @@ function renderBookmarks() {
                 connectionInfoEl.innerHTML = `<strong>连接信息:</strong><br>${detailsText.join('<br>')}`;
                 discoveryContent.appendChild(connectionInfoEl);
                 
-                // 如果同时有发现信息，添加分隔线
+                // 如果同时有探索信息，添加分隔线
                 if (bookmark.discovery) {
                     const divider = document.createElement('hr');
                     divider.className = 'details-divider';
@@ -660,7 +684,7 @@ function renderBookmarks() {
                 }
             }
             
-            // 添加发现信息（如果有）
+            // 添加探索信息（如果有）
             if (bookmark.discovery) {
                 const discoveryInfoEl = document.createElement('pre');
                 discoveryInfoEl.className = 'discovery-info';
@@ -683,7 +707,7 @@ function renderBookmarks() {
         
         const discoverBtn = document.createElement('button');
         discoverBtn.className = 'btn btn-sm btn-outline-info discover-btn';
-        discoverBtn.textContent = '发现';
+        discoverBtn.textContent = '探索';
         discoverBtn.onclick = () => discoverAgent(bookmark);
         
         const deleteBtn = document.createElement('button');
@@ -702,7 +726,7 @@ function renderBookmarks() {
     });
 }
 
-// 发现智能体
+// 探索智能体
 async function discoverAgent(bookmark) {
     if (!chatRunning) {
         addSystemMessage('请先启动聊天');
@@ -710,17 +734,17 @@ async function discoverAgent(bookmark) {
     }
     
     if (!bookmark.url) {
-        addSystemMessage('该智能体没有URL信息，无法进行发现');
+        addSystemMessage('该智能体没有URL信息，无法进行探索');
         return;
     }
-    console.error('发现智能体:', bookmark);
+    console.error('探索智能体:', bookmark);
 
 
     // 添加等待提示
     const waitingMsg = document.createElement('div');
-    console.info('发现智能体:', bookmark);
+    console.info('探索智能体:', bookmark);
     waitingMsg.className = 'system-message waiting-message discover-waiting';
-    waitingMsg.textContent = '正在发现智能体...';
+    waitingMsg.textContent = '正在探索智能体...';
     chatMessages.appendChild(waitingMsg);
     scrollToBottom();
     
@@ -739,7 +763,7 @@ async function discoverAgent(bookmark) {
         
         const data = await response.json();
         
-        console.log('发现智能体:', data);
+        console.log('探索智能体:', data);
         // 移除等待提示
         const waitingElement = document.querySelector('.discover-waiting');
         if (waitingElement) {
@@ -749,14 +773,14 @@ async function discoverAgent(bookmark) {
         if (data.success) {
             // 更新书签的discovery字段
             bookmark.discovery = data.discovery.summary;
-            console.log('发现智能体:', bookmark.discovery);
+            console.log('探索智能体:', bookmark.discovery);
             // 重新渲染书签列表
             renderBookmarks();
             
             // 添加成功消息
-            addSystemMessage(`智能体发现成功: ${data.message}`);
+            addSystemMessage(`智能体探索成功: ${data.message}`);
         } else {
-            addSystemMessage(`智能体发现失败: ${data.message}`);
+            addSystemMessage(`智能体探索失败: ${data.message}`);
         }
     } catch (error) {
         // 移除等待提示
@@ -765,8 +789,8 @@ async function discoverAgent(bookmark) {
             waitingElement.remove();
         }
         
-        console.error('发现智能体出错:', error);
-        addSystemMessage('发现智能体失败，请检查控制台获取详细信息');
+        console.error('探索智能体出错:', error);
+        addSystemMessage('探索智能体失败，请检查控制台获取详细信息');
     }
 }
 

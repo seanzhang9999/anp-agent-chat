@@ -5,6 +5,8 @@ import logging
 import os
 import threading
 import time
+from core.config import settings
+import secrets
 import re
 from urllib.parse import urlparse
 from pathlib import Path
@@ -26,11 +28,61 @@ from web_anp_llmapp import (
     server_running, chat_running,
     client_chat_messages, client_new_message_event
 )
+from anp_core.auth.did_auth import (
+    generate_or_load_did, 
+    send_authenticated_request,
+    send_request_with_token,
+    DIDWbaAuthHeader
+)
 
 # 导入所需的库
 import os
 import httpx
 import asyncio
+
+async def llm_recommand_handler(message: str):
+    """
+    大模型处理函数，处理推荐
+    """
+    OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    
+    if not OPENROUTER_API_KEY:
+        error_msg = "OpenRouter API key未配置，请在环境变量中设置OPENROUTER_API_KEY"
+        return error_msg
+    
+    # 预处理消息，确保格式正确并避免内容被认为不合适
+    formatted_messages = [
+        {"role": "system", "content": "你是一个智能助手，请根据用户的需求推荐最合适的智能体，并在回复的最后使用@智能体名称的格式标注推荐结果。"}, 
+        {"role": "user", "content": message}
+    ]
+    
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "messages": formatted_messages,
+        "max_tokens": 2048
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(OPENROUTER_API_URL, headers=headers, json=payload)
+            if resp.status_code != 200:
+                error_msg = f"API请求失败: {resp.status_code} - {resp.text}"
+                return error_msg
+            
+            response_data = resp.json()
+            assistant_message = response_data["choices"][0]["message"]["content"]
+            if isinstance(assistant_message, bytes):
+                assistant_message = assistant_message.decode('utf-8')
+            return assistant_message
+    except Exception as e:
+        error_msg = f"处理请求时出错: {str(e)}"
+        return error_msg
 
 # 添加大模型处理函数
 async def llm_handler(message: str, chat_history: List[Dict[str, Any]]):
@@ -123,7 +175,7 @@ class Bookmark(BaseModel):
     discovery: Optional[str] = None
 
 
-# 定义发现智能体请求模型
+# 定义探索智能体请求模型
 class DiscoverAgentRequest(BaseModel):
     bookmark_id: str
     url: str
@@ -163,7 +215,7 @@ async def send_message(request: MessageRequest):
         if request.isRecommendation:
             try:
                 # 直接调用大模型处理推荐请求
-                response = await llm_handler(message, chat_history)
+                response = await llm_recommand_handler(message)
                 
                 # 添加助手回复到聊天历史
                 chat_history.append({
@@ -217,7 +269,9 @@ async def send_message(request: MessageRequest):
                 # 发送到ANP服务器
                 print(f"将向智能体发送消息: {custom_msg}")
                 chat_running = False
-                chat_to_ANP(custom_msg, token=token)
+                unique_id = os.environ.get('unique_id')
+
+                chat_to_ANP(custom_msg, token=token, unique_id_arg = unique_id)
                 
                 # 添加系统消息到聊天历史
                 chat_history.append({
@@ -263,7 +317,10 @@ async def send_message(request: MessageRequest):
                     # 发送到ANP服务器
                     print(f"将向智能体发送消息: {custom_msg}")
                     chat_running = False
-                    chat_to_ANP(custom_msg, token=token)
+
+                    unique_id = os.environ.get('unique_id')
+                    
+                    chat_to_ANP(custom_msg, token=token, unique_id_arg = unique_id)
                     
                     # 添加系统消息到聊天历史
                     chat_history.append({
@@ -298,10 +355,11 @@ async def send_message(request: MessageRequest):
                 # 调用大模型处理函数
                 response = await llm_handler(message, chat_history)
                 
+                response = "localAI：" + response
                 # 添加助手回复到聊天历史
                 chat_history.append({
                     "type": "assistant",
-                    "message": "localAI：" + response,
+                    "message": response,
                     "timestamp": time.time()
                 })
                 
@@ -366,27 +424,56 @@ def check_agent_messages():
         if not client_chat_messages:
             return
         
-        # 获取当前时间
-        current_time = time.time()
+        # 添加消息处理计数器，防止死循环
+        processed_count = 0
+        max_process_count = 50  # 设置最大处理消息数量
         
-        # 只处理上次检查后的新消息
+        # 直接遍历所有智能体消息，避免仅依赖时间戳
         for msg in client_chat_messages:
-            # 检查消息时间戳是否晚于上次检查时间
-            if 'timestamp' in msg and msg['timestamp'] > last_agent_check_time:
+            # 限制单次处理的消息数量
+            if processed_count >= max_process_count:
+                logging.warning(f"单次处理消息数量已达上限 {max_process_count}，跳过剩余消息")
+                break
+                
+            processed_count += 1
+            # 只处理assistant类型且from_agent为True的消息，或anp_nlp类型的远程智能体消息
+            if (msg.get('type') == 'assistant' and msg.get('from_agent', False)):
                 # 检查这条消息是否已经在聊天历史中
-                if not any(h.get('timestamp') == msg.get('timestamp') for h in chat_history):
-                    # 添加到聊天历史
+                if not any(h.get('timestamp') == msg.get('timestamp') and h.get('message') == msg.get('content', '') for h in chat_history):
+                    # 直接写入聊天历史
                     chat_history.append({
-                        "type": "assistant",
+                        "type": msg.get('type', 'assistant'),
                         "message": msg.get('content', ''),
+                        "timestamp": msg.get('timestamp'),
+                        "from_agent": msg.get('from_agent', False)
+                    })
+                    logging.info(f"添加智能体消息到聊天历史: {msg.get('content', '')}")
+            elif msg.get('type') == 'anp_nlp':
+                # 为anp_nlp类型消息添加时间戳（如果不存在）
+                if not msg.get('timestamp'):
+                    msg['timestamp'] = time.time()
+                
+                # 使用assistant_message作为消息内容
+                message_content = msg.get('assistant_message', '[无回复]')
+                
+                # 生成唯一标识用于检查消息是否已存在
+                msg_id = f"{msg.get('type')}-{msg.get('user_message')}-{message_content}"
+                
+                # 检查这条消息是否已经在聊天历史中
+                if not any(h.get('message') == message_content and h.get('type') == 'anp_nlp' for h in chat_history):
+                    # 直接写入聊天历史
+                    chat_history.append({
+                        "type": 'anp_nlp',
+                        "message": message_content,
                         "timestamp": msg.get('timestamp'),
                         "from_agent": True
                     })
-                    logging.info(f"添加智能体消息到聊天历史: {msg.get('content', '')}")
-        
-        # 更新上次检查时间
-        last_agent_check_time = current_time
-        
+                    logging.info(f"添加anp_nlp消息到聊天历史: {message_content[:50]}...")
+            else:
+                # 非 assistant 或 anp_nlp 类型消息可根据需要处理或跳过，这里简单跳过
+                continue
+        # 更新时间为当前时间
+        last_agent_check_time = time.time()
         # 保存聊天历史
         save_chat_history()
     except Exception as e:
@@ -395,9 +482,7 @@ def check_agent_messages():
 # 获取聊天历史
 @app.get("/api/chat/history")
 async def get_chat_history():
-    # 先检查是否有新的智能体消息
-    check_agent_messages()
-    return {"success": True, "history": chat_history}
+   return {"success": True, "history": chat_history}
 
 # 清除聊天历史
 @app.post("/api/chat/clear-history")
@@ -414,20 +499,56 @@ async def get_server_status():
     from anp_core.server.server import server_status
     # 更新全局变量以保持一致
     global server_running
+    # 确保server_running反映实际的服务器状态
     server_running = server_status.is_running()
-    return {"running": server_running}
+    
+    # 如果服务器正在运行，返回DID信息
+    if server_running:
+        did_id = os.environ.get('did-id', '')
+        # 尝试获取DID文档路径
+        unique_id = os.environ.get('unique-id', '')
+        if unique_id:
+            user_dir = Path(settings.DID_KEYS_DIR) / f"user_{unique_id}"
+            did_document_path = user_dir / settings.DID_DOCUMENT_FILENAME
+            return {
+                "running": server_running,
+                "did_id": did_id,
+                "did_document_path": str(did_document_path) if did_document_path.exists() else ''
+            }
+    
+    # 如果服务器未运行或无法获取DID信息，只返回运行状态
+    # 确保返回的running状态为False
+    return {"running": False}
 
 @app.post("/api/server/start")
 async def start_server():
     global server_running
     try:
         if not server_running:
+            # demo期间每次生成新的did
+            unique_id = secrets.token_hex(8)
+            
+            os.environ['unique-id'] = unique_id
+            logging.info(f"使用唯一ID: {unique_id}")
+            
+            did_document, keys, user_dir = await generate_or_load_did(unique_id)
+            os.environ['did-id'] = did_document.get('id')
+            did_document_path = Path(user_dir) / settings.DID_DOCUMENT_FILENAME
+            private_key_path = Path(user_dir) / settings.PRIVATE_KEY_FILENAME
+            
+            logging.info(f"DID文档路径: {did_document_path}")
+            logging.info(f"私钥路径: {private_key_path}")
             result = resp_start()
             if result:
                 # 直接从anp_core.server.server模块获取最新的服务器状态
                 from anp_core.server.server import server_status
                 server_running = server_status.is_running()
-                return {"success": True}
+                # 返回DID信息和文档路径
+                return {
+                    "success": True,
+                    "did_id": did_document.get('id'),
+                    "did_document_path": str(did_document_path)
+                }
             else:
                 return {"success": False, "message": "服务器启动失败"}
         return {"success": True, "message": "服务器已经在运行"}
@@ -582,12 +703,12 @@ async def delete_bookmark(bookmark_id: str):
         return {"success": False, "message": str(e)}
 
 
-# 发现智能体细节描述
+# 探索智能体细节描述
 @app.post("/api/find/")
 async def discoveragent(request: DiscoverAgentRequest):
     try:
         # 添加调试日志
-        logging.info("开始处理发现智能体请求")
+        logging.info("开始处理探索智能体请求")
         
         # 获取请求数据
         bookmark_id = request.bookmark_id
@@ -595,7 +716,7 @@ async def discoveragent(request: DiscoverAgentRequest):
         port = request.port
         
         # 处理请求逻辑
-        logging.info(f"处理智能体发现请求: bookmark_id={bookmark_id}, url={url}, port={port}")
+        logging.info(f"处理智能体探索请求: bookmark_id={bookmark_id}, url={url}, port={port}")
         
         
         # 初始化ANPTool
@@ -805,19 +926,19 @@ async def discoveragent(request: DiscoverAgentRequest):
             return {"success": False, "message": f"获取智能体信息失败: {str(e)}"}
         
       
-        logging.info(f"智能体发现完成: {bookmark_id}")
+        logging.info(f"智能体探索完成: {bookmark_id}")
         
         # 返回结果给前端
         return {
             "success": True, 
-            "message": "智能体发现成功",
-            "discovery": discovery_results  # 返回发现结果给前端
+            "message": "智能体探索成功",
+            "discovery": discovery_results  # 返回探索结果给前端
         }
     except Exception as e:
-        logging.error(f"处理发现智能体请求出错: {e}")
+        logging.error(f"处理探索智能体请求出错: {e}")
         return {"success": False, "message": str(e)}
     finally:
-        logging.info("处理发现智能体请求完成")
+        logging.info("处理探索智能体请求完成")
 
 
 
@@ -893,55 +1014,25 @@ def startup_event():
     # load_bookmarks()
     # 加载聊天历史（如果有）
     load_chat_history()
-    # 启动智能体消息检查线程
-    threading.Thread(target=check_agent_messages_thread, daemon=True).start()
+    # 设置智能体消息事件监听器
+    asyncio.create_task(listen_for_agent_messages())
 
-# 检查智能体消息的线程函数
-def check_agent_messages_thread():
+# 异步监听智能体消息事件
+async def listen_for_agent_messages():
+    from web_anp_llmapp import client_new_message_event
+    
     while True:
         try:
+            # 等待新消息事件
+            await client_new_message_event.wait()
+            # 处理新消息
             check_agent_messages()
+            # 重置事件状态，准备接收下一个消息
+            client_new_message_event.clear()
         except Exception as e:
-            logging.error(f"检查智能体消息出错: {e}")
-        time.sleep(2)  # 每2秒检查一次
-
-# 检查是否有新的智能体消息
-def check_agent_messages():
-    global chat_history, last_agent_check_time
-    try:
-        # 从web_anp_llmapp模块获取最新的客户端消息
-        from web_anp_llmapp import client_chat_messages
-        
-        # 如果没有新消息，直接返回
-        if not client_chat_messages:
-            return
-        
-        # 获取当前时间
-        current_time = time.time()
-        
-        # 只处理上次检查后的新消息
-        for msg in client_chat_messages:
-            # 检查消息时间戳是否晚于上次检查时间
-            if 'timestamp' in msg and msg['timestamp'] > last_agent_check_time:
-                # 检查这条消息是否已经在聊天历史中
-                if not any(h.get('timestamp') == msg.get('timestamp') for h in chat_history):
-                    # 添加到聊天历史
-                    chat_history.append({
-                        "type": "assistant",
-                        "message": msg.get('content', ''),
-                        "timestamp": msg.get('timestamp'),
-                        "from_agent": True
-                    })
-                    logging.info(f"添加智能体消息到聊天历史: {msg.get('content', '')}")
-        
-        # 更新上次检查时间
-        last_agent_check_time = current_time
-        
-        # 保存聊天历史
-        save_chat_history()
-    except Exception as e:
-        logging.error(f"检查智能体消息出错: {e}")
-
+            logging.error(f"处理智能体消息事件出错: {e}")
+            # 短暂等待后继续监听
+            await asyncio.sleep(0.5)
 
 # 启动服务器
 if __name__ == "__main__":

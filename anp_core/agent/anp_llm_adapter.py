@@ -57,6 +57,7 @@ async def openrouter_handler(message: str, did: str, requestport: str = None):
         return 500, {"answer": error_msg}
     agentname = os.environ.get('AGENT_NAME')
 
+    prompt = f"你是{agentname}，一个智能的AI助手，你的任务是回答用户的问题。如果你不知道答案，你可以说“我不知道”，但不要试图编造答案。"
     if os.environ.get("prompts"):
         prompt = os.environ.get("prompts")
 
