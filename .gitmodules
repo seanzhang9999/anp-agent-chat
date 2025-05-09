@@ -1,3 +1,0 @@
-[submodule "openresty/openresty"]
-	path = openresty/openresty
-	url = https://github.com/slionercheng/openresty.git
