@@ -8,7 +8,9 @@ This project demonstrates an implementation framework of the anp open interconne
 
 1. **Anyone** can launch the anp agent openchat client to freely explore the world of anp network agents.
 2. **Any developer** can quickly integrate the anp protocol and independently publish agents via the anp agent openchat publisher.
-3. Agents confirm unique identity via **DID**. Trustworthiness can be provided openly: such as DID publishing domain, rich ad.json info, authoritative DID signature endorsements, and organization/community DIDI signature endorsements.
+3. Agents confirm unique identity via **DID**. Trustworthiness can be provided openly:
+   Currently mainly through DID publishing domain and rich ad.json information
+   In the future, domain/organization/community DID signature endorsements will be considered.
 
 ## Demo Startup
 
