@@ -724,6 +724,6 @@ async def reset_config():
 if __name__ == "__main__":
     import uvicorn
     # 启动FastAPI应用
-    host = dynamic_config.get('server.webui-host')
-    port = dynamic_config.get('server.webui-port')
+    host = dynamic_config.get('web_api.server.webui-host')
+    port = dynamic_config.get('web_api.server.webui-port')
     uvicorn.run(app, host=host, port=port)

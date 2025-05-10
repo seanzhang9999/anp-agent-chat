@@ -73,12 +73,13 @@ async def handle_bearer_auth(token: str) -> Dict:
         )
         
         # Check if token contains required fields
-        if "sub" not in payload:
+        if "req_did" not in payload:
             raise HTTPException(status_code=401, detail="Invalid token payload")
             
         return {
-            "did": payload["sub"],
-            "keyid": payload.get("keyid")
+            "req_did": payload["req_did"],
+            "resp_did": payload["resp_did"],
+            "keyid": payload["keyid"]
         }
         
     except jwt.PyJWTError as e:

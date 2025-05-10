@@ -23,9 +23,11 @@ class AgentService:
         self.logger = logging.getLogger(__name__)
         
         # 书签目录
-        self.bookmark_dir = Path(os.path.dirname(os.path.abspath(__file__))).parent / dynamic_config.get('agent.bookmark_dir')
-        self.bookmark_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        bookmark_dir = dynamic_config.get('agent.bookmark_dir')
+        self.bookmark_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), bookmark_dir)
+
+
         # 默认问候语
         self.default_greeting = dynamic_config.get('agent.default_greeting')
         

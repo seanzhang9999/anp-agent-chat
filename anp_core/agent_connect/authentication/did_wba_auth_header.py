@@ -105,7 +105,7 @@ class DIDWbaAuthHeader:
             logging.error(f"Error signing content: {e}")
             raise
     
-    def _generate_auth_header(self, domain: str) -> str:
+    def _generate_auth_header(self, domain: str , resp_did:str) -> str:
         """Generate DID authentication header"""
         try:
             did_document = self._load_did_document()
@@ -116,7 +116,8 @@ class DIDWbaAuthHeader:
             auth_header = generate_auth_header(
                 did_document,
                 domain,
-                self._sign_callback
+                self._sign_callback,
+                resp_did
             )
             
 
@@ -127,7 +128,7 @@ class DIDWbaAuthHeader:
             logging.error(f"Error generating authentication header: {e}")
             raise
     
-    def get_auth_header(self, server_url: str, force_new: bool = False) -> Dict[str, str]:
+    def get_auth_header(self, server_url: str, resp_did: str, force_new: bool = False) -> Dict[str, str]:
         """
         Get authentication header.
         
@@ -148,7 +149,7 @@ class DIDWbaAuthHeader:
         
         # Otherwise, generate or use existing DID authentication header
         if domain not in self.auth_headers or force_new:
-            self.auth_headers[domain] = self._generate_auth_header(domain)
+            self.auth_headers[domain] = self._generate_auth_header(domain , resp_did)
         
         logging.info(f"Using DID authentication header for domain {domain}")
         return {"Authorization": self.auth_headers[domain]}

@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 import threading
 import time
+from types import SimpleNamespace
+import yaml
+import json
+
 
 class DynamicConfig:
     """动态配置管理类
@@ -27,7 +31,9 @@ class DynamicConfig:
         
         # 默认配置文件路径
         if config_file is None:
-            self.config_file = Path(os.path.dirname(os.path.abspath(__file__))) / "dynamic_config.json"
+            # 如果安装了 PyYAML，使用 .yaml 扩展名，否则使用 .json
+            ext = ".yaml" 
+            self.config_file = Path(os.path.dirname(os.path.abspath(__file__))) / f"dynamic_config{ext}"
         else:
             self.config_file = Path(config_file)
             
@@ -39,25 +45,10 @@ class DynamicConfig:
         
         # 默认配置
         self._default_config = {
-            "llm": {
-                "openrouter_api_url": "https://openrouter.ai/api/v1/chat/completions",
-                "default_model": "deepseek/deepseek-chat-v3-0324:free",
-                "max_tokens": 512,
-                "system_prompt": "你是一个智能助手，请根据用户的提问进行专业、简洁的回复。"
-            },
-            "agent": {
-                "bookmark_dir": "anp_core/anp_bookmark",
-                "default_greeting": "ANPbot的问候，请二十字内回复我"
-            },
-            "chat": {
-                "max_history_items": 50,
-                "max_process_count": 50
-            },
-            "server": {
-                "generate_new_did_each_time": True,
-                "webui-host": "localhost",
-                "webui-port": 8080
-            }
+            "# 一个工程中管理统一多个启动程序的配置文件",
+            "# 除了密钥敏感信息存储于env外，其他信息均可存储于该文件中",
+            "# 运行中改变的值可以选择回写到文件中，下次启动时会自动加载",
+            "# 这样方便检查运行情况，也可以作为部分关键信息的log，便于后续分析"
         }
         
         # 当前配置
@@ -78,9 +69,11 @@ class DynamicConfig:
             try:
                 if self.config_file.exists():
                     with open(self.config_file, 'r', encoding='utf-8') as f:
-                        loaded_config = json.load(f)
-                        # 深度更新配置，确保所有默认值都存在
-                        self._config = self._deep_update(self._default_config.copy(), loaded_config)
+                        # 根据文件扩展名选择解析方法
+                        loaded_config = yaml.safe_load(f)
+                        
+                        # 直接使用加载的配置，不与默认配置合并
+                        self._config = loaded_config
                         self.logger.info(f"已从 {self.config_file} 加载配置")
                 else:
                     # 如果文件不存在，使用默认配置并创建文件
@@ -103,7 +96,8 @@ class DynamicConfig:
         with self._config_lock:
             try:
                 with open(self.config_file, 'w', encoding='utf-8') as f:
-                    json.dump(self._config, f, ensure_ascii=False, indent=2)
+                    yaml.dump(self._config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                        
                 self.logger.info(f"已保存配置到 {self.config_file}")
                 return True
             except Exception as e:
@@ -113,7 +107,7 @@ class DynamicConfig:
     def get(self, key: str, default: Any = None) -> Any:
         """获取配置项
         
-        支持使用点号分隔的路径访问嵌套配置，如 'llm.max_tokens'
+        支持使用点号分隔的路径访问嵌套配置，如 'llm.max_tokens' 或多层嵌套如 'a.b.c.d'
         
         Args:
             key: 配置键名，支持点号分隔的路径
@@ -130,9 +124,10 @@ class DynamicConfig:
             parts = key.split('.')
             current = self._config
             for part in parts:
-                if isinstance(current, dict) and part in current:
-                    current = current[part]
-                else:
+                if not isinstance(current, dict):
+                    return default
+                current = current.get(part)
+                if current is None:
                     return default
             return current
     
@@ -228,6 +223,8 @@ class DynamicConfig:
             else:
                 original[key] = value
         return original
+    
+ 
 
 # 创建全局配置实例
 dynamic_config = DynamicConfig()

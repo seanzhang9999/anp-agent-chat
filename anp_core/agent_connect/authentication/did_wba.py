@@ -243,7 +243,9 @@ def resolve_did_wba_document_sync(did: str) -> Dict:
 def generate_auth_header(
     did_document: Dict,
     service_domain: str,
-    sign_callback: Callable[[bytes, str], bytes]
+    sign_callback: Callable[[bytes, str], bytes],
+    resp_did: str
+
 ) -> str:
     """
     Generate the Authorization header for DID authentication.
@@ -282,7 +284,8 @@ def generate_auth_header(
         "nonce": nonce,
         "timestamp": timestamp,
         "service": service_domain,
-        "did": did
+        "did": did,
+        "resp_did": resp_did
     }
     
     # Normalize JSON using JCS
@@ -302,6 +305,7 @@ def generate_auth_header(
         f'DIDWba did="{did}", '
         f'nonce="{nonce}", '
         f'timestamp="{timestamp}", '
+        f'resp_did="{resp_did}", '
         f'verification_method="{verification_method_fragment}", '
         f'signature="{signature}"'
     )
@@ -573,6 +577,7 @@ def extract_auth_header_parts(auth_header: str) -> Tuple[str, str, str, str, str
             - did: DID string
             - nonce: Nonce value
             - timestamp: Timestamp string
+            - resp_did: resp_did value
             - verification_method: Verification method fragment
             - signature: Signature value
             
@@ -585,6 +590,7 @@ def extract_auth_header_parts(auth_header: str) -> Tuple[str, str, str, str, str
         'did': r'(?i)did="([^"]+)"',
         'nonce': r'(?i)nonce="([^"]+)"',
         'timestamp': r'(?i)timestamp="([^"]+)"',
+        'resp_did': r'(?i)resp_did="([^"]+)"',
         'verification_method': r'(?i)verification_method="([^"]+)"',
         'signature': r'(?i)signature="([^"]+)"'
     }
@@ -602,7 +608,7 @@ def extract_auth_header_parts(auth_header: str) -> Tuple[str, str, str, str, str
     
     logging.debug(f"Extracted auth header parts: {parts}")
     return (parts['did'], parts['nonce'], parts['timestamp'], 
-            parts['verification_method'], parts['signature'])
+            parts['resp_did'], parts['verification_method'], parts['signature'])
 
 def verify_auth_header_signature(
     auth_header: str,
@@ -626,7 +632,7 @@ def verify_auth_header_signature(
     
     try:
         # Extract auth header parts
-        client_did, nonce, timestamp_str, verification_method, signature = extract_auth_header_parts(auth_header)
+        client_did, nonce, timestamp_str, resp_id, verification_method, signature = extract_auth_header_parts(auth_header)
          
         # Verify DID (case-sensitive)
         if did_document.get('id').lower() != client_did.lower():
@@ -637,8 +643,11 @@ def verify_auth_header_signature(
             "nonce": nonce,
             "timestamp": timestamp_str,
             "service": service_domain,
-            "did": client_did
+            "did": client_did,
+            "resp_did": resp_id,
         }
+
+
         
         canonical_json = jcs.canonicalize(data_to_verify)
         content_hash = hashlib.sha256(canonical_json).digest()

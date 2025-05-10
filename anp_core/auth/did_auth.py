@@ -142,7 +142,7 @@ async def handle_did_auth(authorization: str, domain: str) -> Dict:
             raise HTTPException(status_code=401, detail="Invalid authorization header format")
             
         # 解包顺序：(did, nonce, timestamp, verification_method, signature)
-        did, nonce, timestamp, keyid, signature = header_parts
+        did, nonce, timestamp, resp_did, keyid, signature = header_parts
         
         logging.info(f"Processing DID WBA authentication - DID: {did}, Key ID: {keyid}")
         
@@ -194,15 +194,17 @@ async def handle_did_auth(authorization: str, domain: str) -> Dict:
             
         # 生成访问令牌
         access_token = create_access_token(
-            data={"sub": did, "keyid": keyid}
+            data={"req_did": did, "resp_did": resp_did, "keyid": keyid}
         )
         
         logging.info(f"认证成功，已生成访问令牌")
         
+        resp_did = "没收到"
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "did": did
+            "req_did": did,
+            "resp_did": resp_did
         }
         
     except HTTPException:
@@ -280,7 +282,7 @@ async def generate_or_load_did(unique_id: str = None) -> Tuple[Dict, Dict, str]:
     return did_document, keys, str(user_dir)
 
 
-async def send_authenticated_request(target_url: str, auth_client: DIDWbaAuthHeader, method: str = "GET", 
+async def send_authenticated_request(target_url: str, auth_client: DIDWbaAuthHeader, resp_did: str, method: str = "GET", 
                                      json_data: Optional[Dict] = None) -> Tuple[int, Dict[str, Any], Optional[str]]:
     """
     发送带有DID WBA认证的请求
@@ -296,7 +298,7 @@ async def send_authenticated_request(target_url: str, auth_client: DIDWbaAuthHea
     """
     try:
         # 获取认证头
-        auth_headers = auth_client.get_auth_header(target_url)
+        auth_headers = auth_client.get_auth_header(target_url , resp_did)
 
         logging.info(f"Sending authenticated request to {target_url} with headers: {auth_headers}")
         

@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Optional
 from pathlib import Path
 from fastapi import APIRouter, Request, Response, HTTPException
-
+from config import dynamic_config
 from core.config import settings
 
 router = APIRouter(tags=["did"])
@@ -26,8 +26,11 @@ async def get_did_document(user_id: str) -> Dict:
     """
     # 构建DID文档路径
     current_dir = Path(__file__).parent.parent.absolute()
-    did_path = current_dir.joinpath("anp_core","did_keys",f"user_{user_id}" , "did.json" )
-     
+    did_path = dynamic_config.get('web_anp_llmapp.user-did-path')
+    did_path = current_dir.joinpath( did_path,f"user_{user_id}" , "did_document.json" )
+
+
+
     if not did_path.exists():
         raise HTTPException(status_code=404, detail=f"DID document not found for user {user_id}")
     

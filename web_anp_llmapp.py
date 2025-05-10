@@ -11,9 +11,21 @@ import sys
 import threading
 import time
 from typing import Any, Dict
-
+from click.core import F
 from loguru import logger
 import uvicorn
+import datetime
+import yaml
+from anp_core.client.client import ANP_req_auth, ANP_req_chat,chat_to_did
+
+from anp_core.auth.did_auth import (
+    generate_or_load_did, 
+    send_authenticated_request,
+    send_request_with_token,
+    DIDWbaAuthHeader
+)
+
+from config import dynamic_config
 
 unique_id = None
 
@@ -73,6 +85,8 @@ client_chat_messages = []
 client_new_message_event = asyncio.Event()
 
 
+
+
 def resp_start(port=None):
     """启动服务器线程
     
@@ -83,11 +97,15 @@ def resp_start(port=None):
     if port is not None:
         try:
             port_num = int(port)
-            settings.PORT = port_num
+            dynamic_config.set('web_anp_llmapp.user-did-port',port_num)
             logger.info(f"Use a custom port: {port_num}")
         except ValueError:
-            logger.error(f"Error prot : {port}，use default port: {settings.PORT}")
-    
+            port_num = dynamic_config.get('web_anp_llmapp.user-did-port')
+            logger.error(f"Error prot : {port}，use default port: {port_num}")
+    else:
+        # 如果未提供端口号，则使用配置中的端口
+        port = dynamic_config.get('web_anp_llmapp.user-did-port')
+
     # 调用did_core中的start_server函数
     return ANP_resp_start(port=port)
 
@@ -267,11 +285,15 @@ def show_help():
     print("可用命令:")
     print("  start resp [port] - 启动anp服务器，可选指定端口号")
     print("  stop resp - 停止anp服务器")
-    print("  start llm - 启动LLM聊天线程")
+    print("  llm - 启动LLM聊天线程")
     print("  stop llm - 停止LLM聊天线程")
     print("  status - 显示服务器和聊天状态")
     print("  help - 显示此帮助信息")
     print("  test - 测试anp")
+    print("  didnew - 创建DID文档和密钥")
+    print("  didrun - 选择did启动")
+    print("  didstop - 停止did服务")
+    print("  didmsg - 发送消息给DID")
     print("  exit - 退出程序")
 
 
@@ -405,41 +427,324 @@ def anp_test():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
     
-    try:
-        # 1. 启动服务器
-        logger.info("===== 步骤1: 启动服务器 =====")
-        server_result = resp_start()
-        logger.info(f"服务器启动结果: {server_result}")
-        logger.info("等待服务器完全启动...")
-        time.sleep(3)  # 等待服务器完全启动
+
+    # 1. 启动服务器
+    logger.info("===== 步骤1: 启动服务器 =====")
+    server_result = resp_start()
+    logger.info(f"服务器启动结果: {server_result}")
+    logger.info("等待服务器完全启动...")
+    time.sleep(3)  # 等待服务器完全启动
         
-        # 2. 发送消息
-        logger.info("\n===== 步骤2: 发送消息 =====")
-        try:
-            # 检查是否安装了httpx模块
-            import httpx
-            test_message = "这是一条测试消息，请回复"  
-            logger.info(f"发送消息: {test_message}")
-            # 获取token，如果环境变量中不存在则使用None
-            token = os.environ.get('did-token', None)
+    # 2. 发送消息
+    logger.info("\n===== 步骤2: 发送消息 =====")
+
+        # 检查是否安装了httpx模块
+    import httpx
+    test_message = "这是一条测试消息，请回复"  
+    logger.info(f"发送消息: {test_message}")
+    # 获取token，如果环境变量中不存在则使用None
+    token = os.environ.get('did-token', None)
+
+    user_list, name_to_dir = get_userdid_list()
+
+
+
+    status, did_dict, selected_name = get_user_did(1,user_list,name_to_dir)
+
+    sender = {
+        "status": status, 
+        "did_dict": did_dict, 
+        "name": selected_name,
+        "user_dir":name_to_dir[selected_name]
+        }
+
+    status, did_dict, selected_name = get_user_did(2,user_list,name_to_dir)
+    targeter = {
+        "status": status, 
+        "did_dict": did_dict, 
+        "name": selected_name,
+        "user_dir":name_to_dir[selected_name]
+        }
+
+
+
+
+    userdid_hostname = dynamic_config.get('web_anp_llmapp.user-did-hostname')
+    userdid_port = dynamic_config.get('web_anp_llmapp.user-did-port')
+
+    key_id = "key-1"
+    userdid_filepath = dynamic_config.get('web_anp_llmapp.user-did-path')
+    user_dir = sender["user_dir"]
+    userdid_filepath = os.path.join(userdid_filepath, user_dir)
+    did_document_path = f"{userdid_filepath}/did_document.json"
+    private_key_path = f"{userdid_filepath}/{key_id}_private.pem"
+    print(f"{user_dir}")
+    print(f"{did_document_path}")
+    print(f"{private_key_path}")
+
+    auth_client = DIDWbaAuthHeader(
+    did_document_path=str(did_document_path),
+    private_key_path=str(private_key_path)
+    )
+
+    base_url = f"http://{userdid_hostname}:{userdid_port}"
+    test_url = f"{base_url}/wba/test"
+
+# 4. 发送带DID WBA认证的请求
+    logging.info(f"发送认证请求到 {test_url}")
+
+    resp_did = targeter["did_dict"]
+    resp_did = resp_did["id"]
+    status, response, token =  asyncio.run( send_authenticated_request(test_url, auth_client , resp_did))
     
-            chat_result = chat_to_ANP(test_message, token)
-            logger.info(f"消息发送结果: {chat_result}")
-            logger.info("等待消息处理...")
-            time.sleep(20)  # 等待消息处理
-        except ImportError:
-            logger.error("缺少httpx模块，无法发送消息。请使用 'pip install httpx' 安装该模块。")
-            print("缺少httpx模块，无法发送消息。请使用 'pip install httpx' 安装该模块。")
+    if status != 200:
+        logging.error(f"认证失败! 状态: {status}")
+        logging.error(f"响应: {response}")
+        return
         
-        # 3. 停止服务器
-        logger.info("\n===== 步骤3: 停止服务器 =====")
-        stop_result = resp_stop()
-        logger.info(f"服务器停止结果: {stop_result}")
+    logging.info(f"认证成功! 响应: {response}")
+    
+    # 5. 如果收到令牌，验证令牌并存储
+    if token:
+        logging.info("收到访问令牌，尝试用于下一个请求")
+        status, response = asyncio.run( send_request_with_token(test_url, token))
         
-        logger.info("\n===== 测试完成 =====")
+        if status == 200:
+            logging.info(f"令牌认证成功! 保存当前令牌！响应: {response}")
+            os.environ['did-token'] = token
+            
+            user_dir = user_dir.strip("_")[1]
+            # 发送消息到聊天接口
+            sender_uid = sender["user_dir"]
+            targeter_uid= targeter["user_dir"]
+            msg = f"我是来自web_anp_llmapp的用户聊天测试消息，发送方为: {sender_uid}，目标为: {targeter_uid}"
+            result , response = asyncio.run(chat_to_did(base_url, token, msg, user_dir, False, False))
+            print(f"发送消息到聊天接口结果: {result}, 响应: {response}")
+
+            msg = f"我是来自web_anp_llmapp的用户第二条聊天测试消息，发送方为: {sender_uid}，目标为: {targeter_uid}"
+            result , response = asyncio.run(chat_to_did(base_url, token, msg, user_dir, False, False))
+            print(f"发送消息到聊天接口结果: {result}, 响应: {response}")
+        else:
+            logging.error(f"令牌认证失败! 状态: {status}")
+            logging.error(f"响应: {response}")
+            print("\n令牌认证失败，客户端示例完成。")
+
+    else:
+        logging.warning("未从服务器收到令牌")
         
-    except Exception as e:
-        logger.error(f"测试过程中出错: {e}")
+    # 3. 停止服务器
+    logger.info("\n===== 步骤3: 停止服务器 =====")
+    stop_result = resp_stop()
+    logger.info(f"服务器停止结果: {stop_result}")
+    
+    logger.info("\n===== 测试完成 =====")
+    
+
+
+
+
+def get_userdid_list():
+    """获取用户列表
+    
+    从anp_core/anp_users目录中读取所有用户的配置文件，提取用户名
+    
+    Returns:
+        tuple: (user_list, name_to_dir) 用户名列表和用户名到目录的映射
+    """
+    user_dirs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "anp_core", "anp_users")
+    user_list = []
+    name_to_dir = {}
+    
+    # 遍历用户目录
+    for user_dir in os.listdir(user_dirs):
+        cfg_path = os.path.join(user_dirs, user_dir, "agent_cfg.yaml")
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    cfg = yaml.safe_load(f)
+                    if cfg and 'name' in cfg:
+                        user_list.append(cfg['name'])
+                        name_to_dir[cfg['name']] = user_dir
+            except Exception as e:
+                print(f"读取配置文件 {cfg_path} 出错: {e}")
+    
+    return user_list, name_to_dir
+
+
+def get_user_did(choice, user_list, name_to_dir):
+    """根据用户选择加载DID文档
+    
+    Args:
+        choice: 用户选择的序号
+        user_list: 用户名列表
+        name_to_dir: 用户名到目录的映射
+        
+    Returns:
+        tuple: (status, did_dict, selected_name) 操作状态、DID文档字典和选中的用户名
+        status为True表示成功，False表示失败
+    """
+    user_dirs = os.path.join(os.path.dirname(os.path.abspath(__file__)), "anp_core", "anp_users")
+    
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(user_list):
+            selected_name = user_list[idx]
+            user_dir = name_to_dir[selected_name]
+            
+            # 加载 did_document.json
+            did_path = os.path.join(user_dirs, user_dir, "did_document.json")
+            if os.path.exists(did_path):
+                try:
+                    with open(did_path, 'r', encoding='utf-8') as f:
+                        did_dict = json.load(f)
+                    print(f"已加载用户 {selected_name} 的 DID 文档")
+                    print(f"DID: {did_dict['id']}")
+                    return True, did_dict, selected_name
+                except Exception as e:
+                    print(f"加载 DID 文档出错: {e}")
+                    return False, None, selected_name
+            else:
+                print(f"未找到用户 {selected_name} 的 DID 文档")
+                return False, None, selected_name
+        else:
+            print("无效的选择")
+            return False, None, None
+    except ValueError:
+        print("请输入有效的数字")
+        return False, None, None
+
+def did_create_user( username):
+    """创建DID"""
+    from anp_core.agent_connect.authentication.did_wba import create_did_wba_document
+    import json
+    import os
+    
+    userdid_filepath = dynamic_config.get('web_anp_llmapp.user-did-path')
+    userdid_hostname = dynamic_config.get('web_anp_llmapp.user-did-hostname')
+    userdid_port = dynamic_config.get('web_anp_llmapp.user-did-port')
+
+    unique_id = secrets.token_hex(8)
+    userdid_filepath = os.path.join(userdid_filepath,f"user_{unique_id}")
+
+    # 用户智能体did基本格式为 did:wba:[host]%3A[port]:wba:user:[unique_id]
+    # 含义为当前地址端口下wba/user/[unique_id]目录为用户智能体的根目录
+    # 其中[unique_id]为随机生成的8位十六进制字符串
+    # 类似 服务智能体did基本格式为 did:wba:[host]%3A[port]:wba:agent[unique_id]
+
+    
+
+    path_segments = ["wba", "user", unique_id]
+    agent_description_url = f"http://{userdid_hostname}:{userdid_port}/wba/user{unique_id}/ad.json"
+    
+    # 调用函数创建DID文档和密钥
+    did_document, keys = create_did_wba_document(
+        hostname = userdid_hostname,
+        port = userdid_port,
+        path_segments=path_segments,
+        agent_description_url=agent_description_url
+    )
+
+
+    
+    # 将DID文档保存到文件
+    os.makedirs(userdid_filepath, exist_ok=True)
+    with open(f"{userdid_filepath}/did_document.json", "w") as f:
+        json.dump(did_document, f, indent=4)
+    
+    # 将私钥和公钥保存到文件
+    for key_id, (private_key_pem, public_key_pem) in keys.items():
+        with open(f"{userdid_filepath}/{key_id}_private.pem", "wb") as f:
+            f.write(private_key_pem)
+        with open(f"{userdid_filepath}/{key_id}_public.pem", "wb") as f:
+            f.write(public_key_pem)
+
+
+
+    agent_cfg = {
+        "name": username,
+        "unique_id": unique_id,
+        "did": did_document["id"]
+    }
+
+    
+    os.makedirs(userdid_filepath, exist_ok=True)
+    with open(f"{userdid_filepath}/agent_cfg.yaml", "w", encoding='utf-8') as f:
+        yaml.dump( agent_cfg, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+    import jwt
+    from Crypto.PublicKey import RSA
+
+    # 生成 RSA 密钥对
+    private_key = RSA.generate(2048).export_key()
+    public_key = RSA.import_key(private_key).publickey().export_key()
+
+    def create_jwt(payload: dict, private_key):
+        payload["exp"] = datetime.datetime.utcnow() + datetime.timedelta(hours=1)  # 过期时间
+        return jwt.encode(payload, private_key, algorithm="RS256")
+
+    def verify_jwt(token: str, public_key):
+        try:
+            return jwt.decode(token, public_key, algorithms=["RS256"])
+        except jwt.ExpiredSignatureError:
+            return {"error": "Token expired"}
+        except jwt.InvalidTokenError:
+            return {"error": "Invalid token"}
+    # 创建 JWT
+
+    testcontent = {"user_id": 123}
+    token = create_jwt(testcontent, private_key)
+    token = verify_jwt(token, public_key)
+    if testcontent["user_id"] == token["user_id"]:
+        
+        with open(f"{userdid_filepath}/private_key.pem", "wb") as f:
+            f.write(private_key)
+        with open(f"{userdid_filepath}/public_key.pem", "wb") as f:
+            f.write(public_key)
+    
+    
+    print(f"DID创建成功: {did_document['id']}")
+    print(f"DID文档已保存到: {userdid_filepath}")
+    print(f"密钥已保存到: {userdid_filepath}")
+    print(f"用户文件已保存到: {userdid_filepath}")
+    print(f"jwt密钥已保存到: {userdid_filepath}")
+    return did_document
+
+
+def did_jwt_generate():
+    import jwt
+    from Crypto.PublicKey import RSA
+
+    # 生成 RSA 密钥对
+    private_key = RSA.generate(2048).export_key()
+    public_key = RSA.import_key(private_key).publickey().export_key()
+
+    def create_jwt(payload: dict, private_key):
+        payload["exp"] = datetime.datetime.utcnow() + datetime.timedelta(hours=1)  # 过期时间
+        return jwt.encode(payload, private_key, algorithm="RS256")
+
+    def verify_jwt(token: str, public_key):
+        try:
+            return jwt.decode(token, public_key, algorithms=["RS256"])
+        except jwt.ExpiredSignatureError:
+            return {"error": "Token expired"}
+        except jwt.InvalidTokenError:
+            return {"error": "Invalid token"}
+    # 创建 JWT
+    testcontent = {"user_id": 123}
+    print(f"原文: {testcontent}")
+    token = create_jwt(testcontent, private_key)
+    print(f"密文: {token}")
+    token = verify_jwt(token, public_key)
+    print(f"解密: {token}")
+    if testcontent["user_id"] == token["user_id"]:
+        print(f"jwt正常: {token}")
+    with open(f"private_key.pem", "wb") as f:
+        f.write(private_key)
+    with open(f"public_key.pem", "wb") as f:
+        f.write(public_key)
+
+
 
 
 if __name__ == "__main__":
@@ -477,7 +782,6 @@ if __name__ == "__main__":
                 if not chat_running:
                     print("聊天线程已退出，恢复命令行控制。")
             command = input("> ").strip().lower()
-            
             if command == "exit":
                 print("正在关闭服务...")
                 stop_chat()
@@ -485,6 +789,16 @@ if __name__ == "__main__":
                 break
             elif command == "test":
                 anp_test()
+            elif command == ("jwt"):
+                did_jwt_generate()
+            elif command.startswith("didnew"):
+                 # 检查是否指定了用户名
+                parts = command.split(" ")
+                if len(parts) > 1:
+                   did_create_user(parts[1])
+                else:
+                    print("请输入用户名。")
+                    continue  # 跳过本轮命令输入
             elif command == "help":
                 show_help()
             elif command == "status":
@@ -498,7 +812,7 @@ if __name__ == "__main__":
                     resp_start()
             elif command.startswith("stop resp"):
                 resp_stop()
-            elif command == "start llm":
+            elif command == "llm":
                 start_chat()
                 # 阻塞主进程直到 chat_thread 结束，避免输入竞争
                 if chat_thread:
@@ -507,10 +821,33 @@ if __name__ == "__main__":
                 continue  # 跳过本轮命令输入
             elif command == "stop llm":
                 stop_chat()
+            elif command == "didrun":
+                # 从 anp_core/anp_users 目录读取所有用户的 agent_cfg.yaml 文件
+                # 提取 name 字段，让用户选择，然后加载对应的 did_document.json
+                user_list, name_to_dir = get_userdid_list()
+                
+                if not user_list:
+                    print("未找到可用的用户配置")
+                    continue
+                
+                # 显示用户列表供选择
+                print("可用的用户:")
+                for i, name in enumerate(user_list):
+                    print(f"{i+1}. {name}")
+                
+                # 获取用户选择
+                choice = input("请选择用户 (输入序号): ")
+                
+                # 使用 get_user_did 函数加载 DID 文档
+                status, did_dict, selected_name = get_user_did(choice, user_list, name_to_dir)
+                
+                # 如果加载成功，可以在这里添加更多处理逻辑
+                if status and did_dict:
+                    print(f"选择了did: {selected_name}:{did_dict}")# 这里可以添加更多处理逻辑
+                    pass
             else:
                 print(f"未知命令: {command}")
                 print("输入'help'查看可用命令")
-                
         except KeyboardInterrupt:
             print("\n检测到退出信号，正在关闭...")
             resp_stop()

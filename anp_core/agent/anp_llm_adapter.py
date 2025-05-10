@@ -23,13 +23,13 @@ class ANPEventBase:
         """
         self._handlers.append(handler)
 
-    async def trigger(self, message: str, did: str, requestport: str = None):
+    async def trigger(self, message: str, req_did: str, resp_did:str , requestport: str = None):
         """
         触发事件，依次调用所有注册的处理函数。
         """
         results = []
         for handler in self._handlers:
-            result = await handler(message, did, requestport)
+            result = await handler(message, req_did, resp_did, requestport)
             results.append(result)
         return results[-1] if results else (500, {"answer": "No handler registered"})
 
@@ -40,7 +40,7 @@ resp_handle_request_event = ANPEventBase()
 resp_handle_request_msgs = []
 resp_handle_request_new_msg_event = asyncio.Event()
 
-async def openrouter_handler(message: str, did: str, requestport: str = None):
+async def openrouter_handler(message: str, req_did: str = None, resp_did: str = None, requestport: str = None):
     """
     默认OpenRouter LLM处理函数，开发者可参考此实现自定义handler。
     """
@@ -84,7 +84,7 @@ async def openrouter_handler(message: str, did: str, requestport: str = None):
                     "user_message": message,
                     "assistant_message": error_msg
                 }
-                await notify_chat_thread(message_data, did)
+                await notify_chat_thread(message_data, req_did)
                 return resp.status_code, {"answer": error_msg}
             data = resp.json()
             agentname = os.environ.get('AGENT_NAME')
@@ -97,8 +97,12 @@ async def openrouter_handler(message: str, did: str, requestport: str = None):
                 "user_message": message,
                 "assistant_message": answer
             }
-            await notify_chat_thread(message_data, did)
-            return 200, {"answer": answer}
+            await notify_chat_thread(message_data, req_did)
+            if req_did is not None and resp_did is not None:
+                return 200, {"answer": f"收到{req_did}的问题，回复如下：{answer}"}
+            else:
+                return 200, {"answer": f"{answer}"}
+            return 200, {"answer": f"收到{did}的问题，回复如下：{answer}"}
     except Exception as e:
         error_msg = f"白嫖的OpenRouter生气了:{e}"
         message_data = {
@@ -106,17 +110,17 @@ async def openrouter_handler(message: str, did: str, requestport: str = None):
             "user_message": message,
             "assistant_message": error_msg
         }
-        await notify_chat_thread(message_data, did)
+        await notify_chat_thread(message_data, req_did)
         return 500, {"answer": error_msg}
 
 # 默认注册OpenRouter处理函数，开发者可按需替换
 resp_handle_request_event.register(openrouter_handler)
 
-async def resp_handle_request(message: str, did: str, requestport: str = None):
+async def resp_handle_request(message: str, req_did: str, resp_did: str,  requestport: str = None):
     """
     统一对外接口，触发事件。
     """
-    return await resp_handle_request_event.trigger(message, did, requestport)
+    return await resp_handle_request_event.trigger(message, req_did, resp_did, requestport)
 
 async def notify_chat_thread(message_data: Dict[str, Any], did: str):
     global resp_handle_request_msgs, resp_handle_request_new_msg_event

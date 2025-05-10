@@ -55,6 +55,67 @@ async def ANP_req_notify_chat_thread(message_data):
     client_new_message_event.set()
 
 
+
+async def chat_to_did(base_url: str, token: str, msg: str, chatdid: str, from_chat: bool = False, silent: bool = False):
+    """向聊天接口发送消息并处理响应
+    
+    Args:
+        base_url: 服务器基础URL
+        token: 认证令牌
+        msg: 要发送的消息
+        from_chat: 是否来自聊天线程调用
+        silent: 是否抑制日志输出
+        
+    Returns:
+        Tuple[bool, dict]: 发送状态和响应数据
+    """
+    anp_nlp_url = f"{base_url}/anp-nlp/{chatdid}/"
+    token = os.environ.get('did-token', token)
+    logging.info("发送消息到聊天接口")
+    try:
+        chat_status, chat_response = await send_request_with_token(
+            anp_nlp_url, 
+            token, 
+            method="POST", 
+            json_data={"message": msg}
+        )
+        if chat_status == 200:
+            logging.info(f"消息发送成功! 回复: {chat_response}")
+            if from_chat:
+                # 如果是从聊天线程调用，发送通知而不是打印
+                await ANP_req_notify_chat_thread({
+                    "type": "anp_nlp",
+                    "user_message": msg,
+                    "assistant_message": chat_response.get('answer', '[无回复]'),
+                    "status": "success"
+                })
+            elif not silent:
+                print(f"\nanp消息\"{msg}\"成功发送，服务器回复: {chat_response.get('answer', '[无回复]')}")
+            return True, chat_response
+        else:
+            logging.error(f"消息发送失败! 状态: {chat_status}")
+            logging.error(f"响应: {chat_response}")
+            if from_chat:
+                await ANP_req_notify_chat_thread({
+                    "type": "anp_nlp",
+                    "status": "error",
+                    "message": "消息发送失败"
+                })
+            elif not silent:
+                print("\n消息发送失败，客户端示例完成。")
+            return False, chat_response
+    except Exception as ce:
+        logging.error(f"发送消息时出错: {ce}")
+        if from_chat:
+            await ANP_req_notify_chat_thread({
+                "type": "anp_nlp",
+                "status": "error",
+                "message": f"发送消息时出错: {ce}"
+            })
+        elif not silent:
+            print(f"\n发送消息时出错: {ce}")
+        return False, {"error": str(ce)}
+
 async def ANP_req_chat(base_url: str, token: str, msg: str, from_chat: bool = False, silent: bool = False):
     """向聊天接口发送消息并处理响应
     

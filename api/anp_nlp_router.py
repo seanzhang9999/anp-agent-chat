@@ -41,8 +41,9 @@ def get_and_validate_port(request: Request) -> str:
     port = host.split(":")[1]
     return port
 
-@router.post("/wba/anp-nlp", summary="ANP的NLP接口，Chat with OpenRouter LLM")
+@router.post("/anp-nlp/{user_id}/", summary="ANP的NLP接口，Chat with OpenRouter LLM")
 async def anp_nlp_service(
+    user_id: str,
     request: Request,
     chat_req: ChatRequest,
     authorization: Optional[str] = Header(None)
@@ -55,12 +56,15 @@ async def anp_nlp_service(
     if not chat_req.message:
         raise HTTPException(status_code=400, detail="Empty message")
         
-    did = request.headers.get("DID")
+    resp_did = user_id
+    req_did = request.headers.get("DID")
     requestport = get_and_validate_port(request)
     
     # 调用封装的OpenRouter请求函数
-    status_code, response_data = await resp_handle_request(chat_req.message, did, requestport)
+    status_code, response_data = await resp_handle_request(chat_req.message, req_did,resp_did, requestport)
     
+    
+
     if status_code != 200:
         raise HTTPException(status_code=status_code, detail=response_data["answer"])
         
